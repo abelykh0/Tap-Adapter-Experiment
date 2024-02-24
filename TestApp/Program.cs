@@ -1,85 +1,102 @@
 ﻿using System;
-using AdvancedSharpAdbClient.Models;
-using AdvancedSharpAdbClient;
 using TapWindows;
-using System.Linq;
-using AdvancedSharpAdbClient.DeviceCommands;
-using AdvancedSharpAdbClient.Receivers;
+using System.Threading.Tasks;
+using System.Diagnostics;
 using System.Globalization;
+using System.Collections;
+using System.Net.Sockets;
+using System.Collections.Generic;
+using System.Text;
+using System.Buffers.Binary;
 
 namespace TestApp
 {
     internal class Program
     {
-        private static TapAdapter _tap;
-
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            SetupAndroid();
-            SetupTapDevice();
+            int port = 30002;
+
+            await SetupAndroidAsync(@"C:\Temp\platform-tools\adb.exe", port);
+
+            var tap = SetupTapDevice();
+
+            await DoWork(port);
 
             Console.WriteLine("Hello, World!");
         }
 
-        private static void SetupTapDevice()
+        private static TapAdapter SetupTapDevice()
         {
-            _tap = new TapAdapter();
+            var result = new TapAdapter();
 
-            bool success = _tap.ConfigDHCP("172.16.1.1", "255.255.255.0", "172.16.1.254",
+            bool success = result.ConfigDHCP("172.16.1.1", "255.255.255.0", "172.16.1.254",
                 "172.16.1.0", ["8.8.8.8", "8.8.4.4"]);
             if (!success)
             {
                 throw new NotSupportedException();
             }
 
-            success = _tap.SetMediaStatus(connected: true);
+            success = result.SetMediaStatus(connected: true);
             if (!success)
             {
                 throw new NotSupportedException();
             }
 
-            success = _tap.ConfigTun("172.16.1.1", "172.16.1.0", "255.255.255.0");
+            success = result.ConfigTun("172.16.1.1", "172.16.1.0", "255.255.255.0");
             if (!success)
             {
                 throw new NotSupportedException();
             }
+
+            return result;
         }
 
-        private static void SetupAndroid()
+        private static async Task SetupAndroidAsync(string adbPath, int port)
         {
-            if (!AdbServer.Instance.GetStatus().IsRunning)
+            // Get the connected device
+            // Note: if the adb server is not started, it will start it as well
+            var results = await RunProcessAsTask.ProcessEx.RunAsync(adbPath, "devices");
+            string device = results.StandardOutput[1].Split('\t')[0];
+            if (string.IsNullOrEmpty(device))
             {
-                var server = new AdbServer();
-                var result = server.StartServer(@"C:\Temp\platform-tools\adb.exe", false);
-                if (result != StartServerResult.Started)
+                throw new NotSupportedException("The phone is not connected.");
+            }
+
+            // Set up forwarding
+            var command = string.Format(CultureInfo.InvariantCulture, "forward tcp:{0} tcp:30002", port);
+            results = await RunProcessAsTask.ProcessEx.RunAsync(adbPath, command);
+        }
+
+        private static async Task DoWork(int port)
+        {
+            var relayConnection = new TcpClient("127.0.0.1", port);
+            using var stream = relayConnection.GetStream();
+
+            // Header is
+            // .word32be('identifier')
+            // .word8('command')
+            // .word32be('size');
+            // command 0: close
+            // command 1: data
+            // command 2: ready
+            // command 3: version
+
+            var firstPacket = new byte[9];
+            BinaryPrimitives.WriteInt32BigEndian(firstPacket.AsSpan(0, 4), 6); // identifier=6 (version)
+            firstPacket[4] = 3; // command 3
+            BinaryPrimitives.WriteInt32BigEndian(firstPacket.AsSpan(5, 4), 0); // size=0
+            await stream.WriteAsync(firstPacket);
+
+            while (true)
+            {
+                var buffer = new Memory<byte>();
+                int readBytes = await stream.ReadAsync(buffer);
+                if (readBytes > 0)
                 {
-                    throw new NotSupportedException("Can't start adb server");
+                    Console.WriteLine(Encoding.UTF8.GetString(buffer.Span));
                 }
             }
-
-            var adbServer = (AdbServer)AdbServer.Instance;
-            adbServer.StartServerAsync
-
-            var adbClient = new AdbClient(adbServer.EndPoint);
-            var device = adbClient.GetDevices().FirstOrDefault();
-            if (device == null)
-            {
-                throw new NotSupportedException("Phone is not connected");
-            }
-
-            int port = 30002;
-
-            var receiver1 = new ConsoleOutputReceiver() { TrimLines = true, ParsesErrors = false };
-            var command = string.Format(CultureInfo.InvariantCulture, "forward tcp:{0} tcp:30002", port);
-            adbClient.ExecuteServerCommand(string.Empty, command, receiver1);
-
-            var receiver2 = new ConsoleOutputReceiver() { TrimLines = true, ParsesErrors = false };
-            adbClient.ExecuteShellCommand(device, "am start -n com.koushikdutta.tether/com.koushikdutta.tether.TetherActivity", receiver2);
-
-            var receiver3 = new ConsoleOutputReceiver() { TrimLines = true, ParsesErrors = false };
-            adbClient.ExecuteShellCommand(device, "am start -n com.koushikdutta.tether/com.koushikdutta.tether.TetherActivity", receiver3);
-
-
         }
     }
 }

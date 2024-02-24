@@ -23,6 +23,7 @@ namespace TapWindows
         private const string TapName = "TAP0901";
 
         private readonly SafeFileHandle _tapHandle;
+        private readonly Stream _stream;
         private bool _disposedValue;
 
         internal static string? DeviceGUID
@@ -55,13 +56,9 @@ namespace TapWindows
             }
         }
 
-        /// <summary>
-        /// Creates a device stream.
-        /// </summary>
-        /// <returns>The device stream.</returns>
-        public FileStream GetStream()
+        public Stream DeviceStream
         {
-            return new FileStream(this._tapHandle, FileAccess.ReadWrite);
+            get { return this._stream; }
         }
 
         /// <summary>
@@ -86,6 +83,8 @@ namespace TapWindows
             {
                 throw new NotSupportedException("Cannot open the TAP-Windows Adapter, probably something else is using it");
             }
+
+            this._stream = new FileStream(this._tapHandle, FileAccess.ReadWrite);
         }
 
         /// <summary>
@@ -145,7 +144,7 @@ namespace TapWindows
 
             if (dnsCount > 0)
             {
-                setDhcpOptions[index] = 3;
+                setDhcpOptions[index] = 6;
                 index++;
                 setDhcpOptions[index] = (byte)(4 * dnsCount);
                 index++;
@@ -205,7 +204,6 @@ namespace TapWindows
             return result;
         }
 
-
         private static uint ParseIP(string ipAddress)
         {
             var ipBytes = IPAddress.Parse(ipAddress).GetAddressBytes();
@@ -218,16 +216,14 @@ namespace TapWindows
             {
                 if (disposing)
                 {
-                    this._tapHandle.Dispose();
+                    this._stream?.Dispose();
+                    this._tapHandle?.Dispose();
                 }
 
                 this._disposedValue = true;
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
         public void Dispose()
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
