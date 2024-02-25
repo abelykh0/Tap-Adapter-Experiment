@@ -3,7 +3,9 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
@@ -23,7 +25,6 @@ namespace TapWindows
         private const string TapName = "TAP0901";
 
         private readonly SafeFileHandle _tapHandle;
-        private readonly Stream _stream;
         private bool _disposedValue;
 
         internal static string? DeviceGUID
@@ -56,11 +57,6 @@ namespace TapWindows
             }
         }
 
-        public Stream DeviceStream
-        {
-            get { return this._stream; }
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="TapAdapter" /> class.
         /// </summary>
@@ -73,7 +69,7 @@ namespace TapWindows
             }
 
             this._tapHandle = NativeMethods.CreateFile(
-                UsermodeDeviceSpace + DeviceGUID + ".tap", 
+                UsermodeDeviceSpace + DeviceGUID + ".tap",
                 FileAccess.ReadWrite, FileShare.ReadWrite,
                 IntPtr.Zero, FileMode.Open,
                 NativeMethods.FILE_ATTRIBUTE_SYSTEM | NativeMethods.FILE_FLAG_OVERLAPPED,
@@ -84,7 +80,49 @@ namespace TapWindows
                 throw new NotSupportedException("Cannot open the TAP-Windows Adapter, probably something else is using it");
             }
 
-            this._stream = new FileStream(this._tapHandle, FileAccess.ReadWrite);
+            ThreadPool.BindHandle(this._tapHandle);
+
+            //var fileStream = new FileStream(UsermodeDeviceSpace + DeviceGUID + ".tap", FileMode.Open,
+            //    FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.WriteThrough | FileOptions.SequentialScan);
+
+            //this._tapHandle = fileStream.SafeFileHandle;
+            //this._stream = fileStream;
+        }
+
+        public unsafe Task<int> ReadAsync(byte[] bytes, int count)
+        {
+            NativeOverlapped* intOverlapped = null;
+            uint readBytes = 0;
+
+            var overlapped = new Overlapped(0, 0, IntPtr.Zero, null);
+            var complete = new ManualResetEvent(false);
+            intOverlapped = overlapped.UnsafePack(iocomplete, bytes);
+            ReadFileNative(this._tapHandle, bytes, count, intOverlapped, out _);
+            return Task.Run(() => { complete.WaitOne(); return (int)readBytes; });
+
+            void iocomplete(uint errorCode, uint numBytes, NativeOverlapped* pOverlapped)
+            {
+                Overlapped.Free(intOverlapped);
+                readBytes = numBytes;
+                complete.Set();
+            }
+        }
+
+        public unsafe Task WriteAsync(byte[] bytes)
+        {
+            NativeOverlapped* intOverlapped = null;
+
+            var overlapped = new Overlapped(0, 0, IntPtr.Zero, null);
+            var complete = new ManualResetEvent(false);
+            intOverlapped = overlapped.UnsafePack(iocomplete, bytes);
+            WriteFileNative(this._tapHandle, bytes, bytes.Length, intOverlapped, out _);
+            return Task.Run(() => { complete.WaitOne(); });
+
+            void iocomplete(uint errorCode, uint numBytes, NativeOverlapped* pOverlapped)
+            {
+                Overlapped.Free(intOverlapped);
+                complete.Set();
+            }
         }
 
         /// <summary>
@@ -163,7 +201,6 @@ namespace TapWindows
             return result;
         }
 
-
         /// <summary>
         /// Sets the media status.
         /// </summary>
@@ -204,19 +241,12 @@ namespace TapWindows
             return result;
         }
 
-        private static uint ParseIP(string ipAddress)
-        {
-            var ipBytes = IPAddress.Parse(ipAddress).GetAddressBytes();
-            return BinaryPrimitives.ReadUInt32LittleEndian(ipBytes);
-        }
-
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposedValue)
             {
                 if (disposing)
                 {
-                    this._stream?.Dispose();
                     this._tapHandle?.Dispose();
                 }
 
@@ -229,6 +259,68 @@ namespace TapWindows
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             this.Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        private static uint ParseIP(string ipAddress)
+        {
+            var ipBytes = IPAddress.Parse(ipAddress).GetAddressBytes();
+            return BinaryPrimitives.ReadUInt32LittleEndian(ipBytes);
+        }
+
+        private unsafe int ReadFileNative(SafeFileHandle handle, byte[] bytes, int count, NativeOverlapped* overlapped, out int hr)
+        {
+            bool r;
+            int numBytesRead = 0;
+
+            fixed (byte* p = bytes)
+            {
+                r = NativeMethods.ReadFile(handle, p, count, out numBytesRead, overlapped);
+            }
+
+            if (!r)
+            {
+                hr = Marshal.GetLastWin32Error();
+                if (hr == NativeMethods.ERROR_INVALID_HANDLE)
+                {
+                    handle.Dispose();
+                }
+
+                return -1;
+            }
+            else
+            {
+                hr = 0;
+            }
+
+            return numBytesRead;
+        }
+
+        private unsafe int WriteFileNative(SafeFileHandle handle, byte[] bytes, int count, NativeOverlapped* overlapped, out int hr)
+        {
+            int numBytesWritten;
+            bool r;
+
+            fixed (byte* p = bytes)
+            {
+                r = NativeMethods.WriteFile(handle, p, count, out numBytesWritten, overlapped);
+            }
+
+            if (!r)
+            {
+                hr = Marshal.GetLastWin32Error();
+                if (hr == NativeMethods.ERROR_INVALID_HANDLE)
+                {
+                    handle.Dispose();
+                }
+
+                return -1;
+            }
+            else
+            {
+                hr = 0;
+            }
+
+            return numBytesWritten;
         }
     }
 }
