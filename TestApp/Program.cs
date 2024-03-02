@@ -10,6 +10,7 @@ using System.Threading;
 using Enclave.FastPacket;
 using System.IO;
 using System.Net;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TestApp
 {
@@ -182,6 +183,61 @@ namespace TestApp
 
         private static void RewritePacket(PacketInfo packetInfo)
         {
+            byte[] packet = new byte[200];
+
+            //function rewritePacket(connections, packet, source, sourcePort, destination, destinationPort, vars)
+
+            BinaryPrimitives.WriteUInt32BigEndian(packet.AsSpan(12, 4), packetInfo.Source.ToUInt());
+            BinaryPrimitives.WriteUInt32BigEndian(packet.AsSpan(16, 4), packetInfo.Destination.ToUInt());
+            //packet.writeUInt32BE(source, 12);
+            //packet.writeUInt32BE(destination, 16);
+
+            //// clear out the old checksum
+            //packet.writeUInt16BE(0, 10);
+            BinaryPrimitives.WriteUInt16BigEndian(packet.AsSpan(10, 2), 0);
+
+            var headerLength = packetInfo.IHL * 4;
+            //var ipChecksum = calculateIPChecksum(packet, headerLength);
+            //// write the new checksum
+            //packet.writeUInt16LE(ipChecksum, 10);
+
+            //var stashedIPHeader = new Buffer(headerLength);
+            //packet.copy(stashedIPHeader, 0, 0, headerLength);
+
+            //// now create a pseudo header for the tcp checksum, in place.
+            var startOffset = headerLength - 12;
+            //var payloadLength = vars.totalLength - headerLength;
+            BinaryPrimitives.WriteUInt32BigEndian(packet.AsSpan(startOffset, 4), packetInfo.Source.ToUInt());
+            BinaryPrimitives.WriteUInt32BigEndian(packet.AsSpan(startOffset + 4, 4), packetInfo.Destination.ToUInt());
+            packet[startOffset + 8] = 0;
+            packet[startOffset + 9] = (byte)packetInfo.Protocol;
+            //BinaryPrimitives.WriteUInt16BigEndian(packet.AsSpan(startOffset + 10, 2), payloadLength);
+            //packet.writeUInt32BE(source, startOffset);
+            //packet.writeUInt32BE(destination, startOffset + 4);
+            //packet.writeUInt8(0, startOffset + 8);
+            //packet.writeUInt8(vars.protocol, startOffset + 9);
+            //packet.writeUInt16BE(payloadLength, startOffset + 10);
+
+            //// this completes the rewrite of the tcp checksum pseudo-header
+            //// rewrite the ports and clear out the old checksum
+            BinaryPrimitives.WriteUInt16BigEndian(packet.AsSpan(headerLength, 2), (ushort)packetInfo.SourcePort);
+            BinaryPrimitives.WriteUInt16BigEndian(packet.AsSpan(headerLength + 2, 2), (ushort)packetInfo.DestinationPort);
+            //packet.writeUInt16BE(sourcePort, headerLength);
+            //packet.writeUInt16BE(destinationPort, headerLength + 2);
+
+            //// clear out the old checksum
+            //BinaryPrimitives.WriteUInt16BigEndian(packet.AsSpan(headerLength + connections.checksumOffset, 2), 0);
+            //packet.writeUInt16BE(0, headerLength + connections.checksumOffset);
+
+            //// pseudo header is complete, checksum it and store
+            //var tcpChecksum = calculateIPChecksum(packet, 12 + payloadLength, startOffset);
+            //packet.writeUInt16LE(tcpChecksum, headerLength + connections.checksumOffset);
+
+            //// tcp checksum is complete, so let's restore the original ip header
+            //stashedIPHeader.copy(packet, 0, 0, headerLength);
+
+            //// we can now send this packet off to the tun device.
+            //queuePacket(packet.slice(0, vars.totalLength));
         }
 
         // From phone (infinite loop)

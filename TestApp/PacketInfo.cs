@@ -11,13 +11,15 @@ namespace TestApp
             ValueIpAddress destination,
             int destinationPort,
             ValueIpAddress source,
-            int sourcePort)
+            int sourcePort,
+            byte iHL)
         {
             Protocol = protocolType;
             Destination = destination;
             DestinationPort = destinationPort;
             Source = source;
             SourcePort = sourcePort;
+            this.IHL = iHL;
         }
 
         public PacketInfo(byte[] buffer, int length)
@@ -25,6 +27,7 @@ namespace TestApp
             Ipv4PacketSpan ipPacket = new(buffer.AsSpan(0, length));
             Source = ipPacket.Source;
             Destination = ipPacket.Destination;
+            IHL = ipPacket.IHL;
 
             switch (ipPacket.Protocol)
             {
@@ -55,5 +58,7 @@ namespace TestApp
 
         public ValueIpAddress Source { get; }
         public int SourcePort { get; }
+
+        public byte IHL { get; }
     }
 }
