@@ -9,22 +9,27 @@ using System.Buffers.Binary;
 using System.Threading;
 using Enclave.FastPacket;
 using System.IO;
+using System.Net;
 
 namespace TestApp
 {
     internal sealed class Program
     {
-        private static Dictionary<int, Connection> _relays = new Dictionary<int, Connection>();
+        private static readonly ValueIpAddress TunIp = ValueIpAddress.Create(IPAddress.Parse("172.16.1.1"));
+
+        private const int RelayPort = 30002;
+
+        private const int CatcherPort = 50001;
+
+        private static Dictionary<int, Connection> _relays = [];
 
         static async Task Main(string[] args)
         {
-            int port = 30002;
-
-            await SetupAndroidAsync(@"C:\Temp\platform-tools\adb.exe", port);
+            await SetupAndroidAsync(@"C:\Temp\platform-tools\adb.exe", RelayPort);
 
             var tap = SetupTapDevice();
 
-            await DoWork(tap, port);
+            await DoWork(tap, RelayPort);
 
             Console.WriteLine("Hello, World!");
         }
@@ -33,7 +38,9 @@ namespace TestApp
         {
             var result = new TapAdapter();
 
-            bool success = result.ConfigDHCP("172.16.1.1", "255.255.255.0", "172.16.1.254",
+            string ipAddress = TunIp.ToString();
+
+            bool success = result.ConfigDHCP(ipAddress, "255.255.255.0", "172.16.1.254",
                 "172.16.1.0", ["8.8.8.8", "8.8.4.4"]);
             if (!success)
             {
@@ -46,7 +53,7 @@ namespace TestApp
                 throw new NotSupportedException();
             }
 
-            success = result.ConfigTun("172.16.1.1", "172.16.1.0", "255.255.255.0");
+            success = result.ConfigTun(ipAddress, "172.16.1.0", "255.255.255.0");
             if (!success)
             {
                 throw new NotSupportedException();
@@ -111,7 +118,7 @@ namespace TestApp
                     var connection = CreateConnection(buffer, readBytes);
                     if (connection != null)
                     {
-                        relays[connection.Identifier] = connection;
+                        _relays[connection.Identifier] = connection;
                     }
                 }
             }
@@ -126,41 +133,135 @@ namespace TestApp
             // command 3: version
         }
 
-        // From phone
-        private static async Task HandleRelayData(NetworkStream relayStream)
+        // From TAP (infinite loop)
+        private static async Task HandleTapData(TapAdapter tap)
         {
-            var data = new MemoryStream();
             while (true)
             {
-                data.Position = data.Length;
-
-                var buffer = new Memory<byte>();
-                var bytesRead = await relayStream.ReadAsync(buffer);
-                data.Write(buffer.Slice(0, bytesRead).Span);
-
-                if (data.Length < 9)
+                var buffer = new byte[4096];
+                var readBytes = await tap.ReadAsync(buffer, buffer.Length);
+                if (readBytes > 0)
                 {
+                    var packetInfo = new PacketInfo(buffer, readBytes);
+
+                    // see if this packet is originating from a traffic catcher
+                    if (packetInfo.SourcePort == CatcherPort)
+                    {
+                        if (!_relays.TryGetValue(packetInfo.DestinationPort, out Connection? connection))
+                        {
+                            // unknown connection
+                            continue;
+                        }
+
+                        var rewritePacketInfo = new PacketInfo(connection.Protocol, 
+                            connection.Destination, connection.DestinationPort, 
+                            connection.Source, connection.SourcePort);
+                        RewritePacket(rewritePacketInfo);
+                    }
+                    else
+                    {
+                        // see if this packet is already part of an accepted connection
+                        // and needs to be directed to a traffic catcher
+
+                        if (!_relays.TryGetValue(packetInfo.SourcePort, out Connection? connection))
+                        {
+                            // unknown connection
+                            continue;
+                        }
+
+                        var rewritePacketInfo = new PacketInfo(packetInfo.Protocol, 
+                            packetInfo.Destination, packetInfo.SourcePort, 
+                            packetInfo.Source, CatcherPort);
+                        RewritePacket(rewritePacketInfo);
+                    }
+
+                    //CreateConnection(buffer, readBytes);
+                }
+            }
+        }
+
+        private static void RewritePacket(PacketInfo packetInfo)
+        {
+        }
+
+        // From phone (infinite loop)
+        private static void HandleRelayData(NetworkStream relayStream)
+        {
+            while (true)
+            {
+                var packet = GetNextPacket(relayStream);
+
+                if (packet.Command == CommandKind.Version)
+                {
+                    // received phone Tether version
                     continue;
                 }
 
+                if (!_relays.TryGetValue(packet.Identifier, out Connection? connection))
+                {
+                    // unknown connection
+                    continue;
+                }
+
+                switch (packet.Command)
+                {
+                    case CommandKind.Close:
+                        _relays.Remove(packet.Identifier);
+                        break;
+
+                    case CommandKind.Ready:
+                        connection.Ready();
+                        break;
+
+                    case CommandKind.Data:
+                        connection.Write(packet.Data);
+                        break;
+                }
+            }
+        }
+
+        private static RelayPacket GetNextPacket(NetworkStream relayStream)
+        {
+            while (true)
+            {
+                var data = new MemoryStream();
+
+                while (data.Length < 9)
+                {
+                    int dataByte = relayStream.ReadByte();
+                    if (dataByte == -1)
+                    {
+                        continue;
+                    }
+
+                    data.WriteByte((byte)dataByte);
+                }
+
+                // Header received
                 var header = data.ToArray();
                 var identifier = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(0, 4));
                 var command = (CommandKind)header[4];
                 var size = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(5, 4));
 
-                if (_relays.TryGetValue(identifier, out Connection? connection))
+                // Read the rest
+                while (data.Length < 9 + size)
                 {
+                    int dataByte = relayStream.ReadByte();
+                    if (dataByte == -1)
+                    {
+                        continue;
+                    }
 
+                    data.WriteByte((byte)dataByte);
                 }
 
-                var connnection = _relays
+                return new RelayPacket()
+                {
+                    Identifier = identifier,
+                    Command = command,
+                    Data = data.ToArray()
+                };
             }
-        }
-
-        private static int CreateConnection(byte[] buffer, int length)
-        {
-            Ipv4PacketSpan ipPacket = new(buffer.AsSpan(0, length));
-            return Connection.Create(ref ipPacket);
         }
 
         private static Connection? CreateConnection(byte[] buffer, int length)
@@ -195,25 +296,6 @@ namespace TestApp
                     break;
             }
 
-        }
-
-        private static async Task RunConnectionAsync(TcpListener catcher)
-        {
-            while (true)
-            {
-                TcpClient handler = await catcher.AcceptTcpClientAsync();
-                NetworkStream stream = handler.GetStream();
-
-                while (true)
-                {
-                    var buffer = new Memory<byte>();
-                    int bytesRead = await stream.ReadAsync(buffer);
-                    if (bytesRead > 0)
-                    {
-                        Console.WriteLine("From phone {0}", Encoding.ASCII.GetString(buffer.ToArray()));
-                    }
-                }
-            }
         }
     }
 }

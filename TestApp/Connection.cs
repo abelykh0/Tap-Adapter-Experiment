@@ -23,16 +23,19 @@ namespace TestApp
         }
 
         public ProtocolType Protocol { get; }
+        public ValueIpAddress Source { get; }
         public int SourcePort { get; }
         public ValueIpAddress Destination { get; }
         public int DestinationPort { get; }
 
         private Connection(
             ProtocolType protocolType,
+            ValueIpAddress source,
             int sourcePort,
             ValueIpAddress destination,
             int destinatinPort)
         {
+            this.Source = source;
             this.SourcePort = sourcePort;
             this.Protocol = protocolType;
             this.Destination = destination;
@@ -45,12 +48,12 @@ namespace TestApp
             {
                 case IpProtocol.Tcp:
                     TcpPacketSpan tcpPacket = new(ipPacket.Payload);
-                    return new Connection(ProtocolType.Tcp,
+                    return new Connection(ProtocolType.Tcp, ipPacket.Source,
                         tcpPacket.SourcePort, ipPacket.Destination, tcpPacket.DestinationPort);
 
                 case IpProtocol.Udp:
                     UdpPacketSpan udpPacket = new(ipPacket.Payload);
-                    return new Connection(ProtocolType.Udp,
+                    return new Connection(ProtocolType.Udp, ipPacket.Source,
                         udpPacket.SourcePort, ipPacket.Destination, udpPacket.DestinationPort);
 
                 default:
@@ -60,13 +63,7 @@ namespace TestApp
             return null;
         }
 
-        public void Send(byte[] data)
-        {
-
-        }
-
-        // udp-outgoing
-        public void Write()
+        public void Write(byte[] data)
         {
 
         }
