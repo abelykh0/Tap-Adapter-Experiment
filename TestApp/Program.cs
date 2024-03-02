@@ -1,24 +1,21 @@
 ﻿using System;
 using TapWindows;
 using System.Threading.Tasks;
-using System.Diagnostics;
 using System.Globalization;
-using System.Collections;
 using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Text;
 using System.Buffers.Binary;
-using System.Net;
-using System.IO;
-using System.Runtime.CompilerServices;
 using System.Threading;
-using PacketDotNet;
-using PacketDotNet.Utils;
+using Enclave.FastPacket;
+using System.IO;
 
 namespace TestApp
 {
     internal sealed class Program
     {
+        private static Dictionary<int, Connection> _relays = new Dictionary<int, Connection>();
+
         static async Task Main(string[] args)
         {
             int port = 30002;
@@ -76,56 +73,47 @@ namespace TestApp
 
         private static async Task DoWork(TapAdapter tap, int port)
         {
-            var relayConnection = new TcpClient("127.0.0.1", port);
-            relayConnection.NoDelay = true;
-            using var stream = relayConnection.GetStream();
+            var relayConnection = new TcpClient("127.0.0.1", port)
+            {
+                NoDelay = true
+            };
 
-            //var tcpCatcherPort = 50001;
-            //var tcpCatcher = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            //tcpCatcher.NoDelay = true;
-            //Thread.Sleep(500);
-            //tcpCatcher.Bind(new IPEndPoint(IPAddress.Parse("172.16.1.1"), tcpCatcherPort));
-            //tcpCatcher.Listen(tcpCatcherPort);
+            using var stream = relayConnection.GetStream();
 
             var firstPacket = new byte[9];
             BinaryPrimitives.WriteInt32BigEndian(firstPacket.AsSpan(0, 4), 6); // identifier=6 (version)
-            firstPacket[4] = 3; // command 3
+            firstPacket[4] = (byte)CommandKind.Version;
             BinaryPrimitives.WriteInt32BigEndian(firstPacket.AsSpan(5, 4), 0); // size=0
             await stream.WriteAsync(firstPacket);
 
-            var packet = new TcpPacket(30002, 30002);
-            packet.PayloadData = firstPacket;
+            Thread.Sleep(500);
 
-            await tap.WriteAsync(packet.Bytes);
-            //tap.DeviceStream.Write(firstPacket);
+            var secondPacket = new byte[18];
+            BinaryPrimitives.WriteInt32BigEndian(secondPacket.AsSpan(0, 4), 5000);  // identifier=5000 (source port)
+            secondPacket[4] = (byte)CommandKind.Ready;
+            BinaryPrimitives.WriteInt32BigEndian(secondPacket.AsSpan(5, 4), 9);     // size=9
+            secondPacket[9] = (byte)ProtocolType.Tcp;
+            BinaryPrimitives.WriteInt32BigEndian(secondPacket.AsSpan(10, 4), 9);    // destination IP
+            BinaryPrimitives.WriteInt32BigEndian(secondPacket.AsSpan(14, 4), 5000); // destination port
+            await stream.WriteAsync(secondPacket);
+
+            //var tcpCatcherPort = 50001;
+            //var tcpCatcher = new TcpListener(IPAddress.Parse("172.16.1.1"), tcpCatcherPort);
+            //tcpCatcher.Start();
+            //_ = RunConnectionAsync(tcpCatcher);
 
             while (true)
             {
-                //var socket = await tcpCatcher.AcceptAsync();
-                //_ = RunConnectionAsync(socket);
-
-                //var buffer = new Memory<byte>();
-                //int readBytes = await stream.ReadAsync(buffer);
-                //if (readBytes > 0)
-                //{
-                //    Console.WriteLine("from {0}:{1}, to {2}:{3}, data {4}",
-                //        ipPacket.SourceAddress, packet.SourcePort,
-                //        ipPacket.DestinationAddress, packet.DestinationPort,
-                //        Encoding.UTF8.GetString(ipPacket.PayloadData));
-                //}
-
-                var buffer2 = new byte[4096];
-                var readBytes2 = await tap.ReadAsync(buffer2, buffer2.Length);
-                if (readBytes2 > 0)
+                var buffer = new byte[4096];
+                var readBytes = await tap.ReadAsync(buffer, buffer.Length);
+                if (readBytes > 0)
                 {
-                    var ipPacket = new IPPacket(new ByteArraySegment(buffer2, 0, readBytes2));
-
-                    Console.WriteLine("from {0}:{1}, to {2}:{3}, data {4}",
-                        ipPacket.SourceAddress, packet.SourcePort,
-                        ipPacket.DestinationAddress, packet.DestinationPort,
-                        Encoding.UTF8.GetString(ipPacket.PayloadData));
+                    var connection = CreateConnection(buffer, readBytes);
+                    if (connection != null)
+                    {
+                        relays[connection.Identifier] = connection;
+                    }
                 }
-
             }
 
             // Header is
@@ -138,15 +126,95 @@ namespace TestApp
             // command 3: version
         }
 
-        private static async Task RunConnectionAsync(Socket socket)
+        // From phone
+        private static async Task HandleRelayData(NetworkStream relayStream)
         {
-            var buffer = new Memory<byte>();
-            int readBytes = await socket.ReceiveAsync(buffer);
-            if (readBytes > 0)
+            var data = new MemoryStream();
+            while (true)
             {
-                Console.WriteLine(Encoding.UTF8.GetString(buffer.Span));
+                data.Position = data.Length;
+
+                var buffer = new Memory<byte>();
+                var bytesRead = await relayStream.ReadAsync(buffer);
+                data.Write(buffer.Slice(0, bytesRead).Span);
+
+                if (data.Length < 9)
+                {
+                    continue;
+                }
+
+                var header = data.ToArray();
+                var identifier = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(0, 4));
+                var command = (CommandKind)header[4];
+                var size = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(5, 4));
+
+                if (_relays.TryGetValue(identifier, out Connection? connection))
+                {
+
+                }
+
+                var connnection = _relays
             }
-            ;
+        }
+
+        private static int CreateConnection(byte[] buffer, int length)
+        {
+            Ipv4PacketSpan ipPacket = new(buffer.AsSpan(0, length));
+            return Connection.Create(ref ipPacket);
+        }
+
+        private static Connection? CreateConnection(byte[] buffer, int length)
+        {
+            Ipv4PacketSpan ipPacket = new(buffer.AsSpan(0, length));
+            return Connection.Create(ref ipPacket);
+        }
+
+        private static void PrintPacket(byte[] buffer, int length)
+        {
+            Ipv4PacketSpan ipPacket = new(buffer.AsSpan(0, length));
+
+            switch (ipPacket.Protocol)
+            {
+                case IpProtocol.Tcp:
+                    TcpPacketSpan tcpPacket = new(ipPacket.Payload);
+                    Console.WriteLine("TCP from {0}:{1}, to {2}:{3}, data {4}",
+                        ipPacket.Source.ToString(), tcpPacket.SourcePort,
+                        ipPacket.Destination.ToString(), tcpPacket.DestinationPort,
+                        Encoding.UTF8.GetString(tcpPacket.Payload));
+                    break;
+
+                case IpProtocol.Udp:
+                    //UdpPacketSpan udpPacket = new(ipPacket.Payload);
+                    //Console.WriteLine("UDP from {0}:{1}, to {2}:{3}, data {4}",
+                    //    ipPacket.Source.ToString(), udpPacket.SourcePort,
+                    //    ipPacket.Destination.ToString(), udpPacket.DestinationPort,
+                    //    Encoding.UTF8.GetString(udpPacket.Payload));
+                    break;
+
+                default:
+                    break;
+            }
+
+        }
+
+        private static async Task RunConnectionAsync(TcpListener catcher)
+        {
+            while (true)
+            {
+                TcpClient handler = await catcher.AcceptTcpClientAsync();
+                NetworkStream stream = handler.GetStream();
+
+                while (true)
+                {
+                    var buffer = new Memory<byte>();
+                    int bytesRead = await stream.ReadAsync(buffer);
+                    if (bytesRead > 0)
+                    {
+                        Console.WriteLine("From phone {0}", Encoding.ASCII.GetString(buffer.ToArray()));
+                    }
+                }
+            }
         }
     }
 }
+
