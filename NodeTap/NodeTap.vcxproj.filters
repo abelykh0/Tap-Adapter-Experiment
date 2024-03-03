@@ -40,11 +40,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\test.js">
-      <Filter>TestFiles</Filter>
-    </None>
     <None Include="TestFiles\build\package.json">
       <Filter>TestFiles\build</Filter>
+    </None>
+    <None Include="TestFiles\test.js">
+      <Filter>TestFiles</Filter>
     </None>
   </ItemGroup>
 </Project>

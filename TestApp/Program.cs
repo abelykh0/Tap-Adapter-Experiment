@@ -156,7 +156,7 @@ namespace TestApp
 
                         var rewritePacketInfo = new PacketInfo(connection.Protocol, 
                             connection.Destination, connection.DestinationPort, 
-                            connection.Source, connection.SourcePort);
+                            connection.Source, connection.SourcePort, 0);
                         RewritePacket(rewritePacketInfo);
                     }
                     else
@@ -172,7 +172,7 @@ namespace TestApp
 
                         var rewritePacketInfo = new PacketInfo(packetInfo.Protocol, 
                             packetInfo.Destination, packetInfo.SourcePort, 
-                            packetInfo.Source, CatcherPort);
+                            packetInfo.Source, CatcherPort, 0);
                         RewritePacket(rewritePacketInfo);
                     }
 

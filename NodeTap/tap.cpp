@@ -9,13 +9,25 @@ using namespace std;
 
 bool GetInt64Parameter(napi_env env, napi_value parameter, int64_t* value);
 bool GetBoolParameter(napi_env env, napi_value parameter, bool* value);
-bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR* value);
+bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR* value); 
+static bool GetDeviceGuid(wstring& deviceGuid);
 
 // returns HANDLE
 napi_value OpenTap(napi_env env, napi_callback_info info) 
 {
+	wstring deviceGuid;
+	if (!GetDeviceGuid(deviceGuid))
+	{
+		napi_throw_type_error(env, nullptr, CANNOT_OPEN_TAP);
+		return nullptr;
+	}
+
+	wstring tapFileName = UsermodeDeviceSpace;
+	tapFileName += deviceGuid;
+	tapFileName += L".tap";
+
 	HANDLE handle = CreateFile(
-		TAP_FILE_NAME,
+		tapFileName.data(),
 		FILE_WRITE_ACCESS | FILE_READ_ACCESS,
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
 		nullptr,
@@ -25,7 +37,7 @@ napi_value OpenTap(napi_env env, napi_callback_info info)
 
 	if (handle == INVALID_HANDLE_VALUE)
 	{
-		napi_throw_type_error(env, nullptr, "Error opening tap file");
+		napi_throw_type_error(env, nullptr, CANNOT_OPEN_TAP);
 		return nullptr;
 	}
 
@@ -84,9 +96,9 @@ napi_value ConfigDhcp(napi_env env, napi_callback_info info)
 	}
 
 	u_long buffer[4];
-	buffer[0] = htonl(ipAddress.S_un.S_addr);
-	buffer[1] = htonl(mask.S_un.S_addr);
-	buffer[2] = htonl(dhcpServerIP.S_un.S_addr);
+	buffer[0] = ipAddress.S_un.S_addr;
+	buffer[1] = mask.S_un.S_addr;
+	buffer[2] = dhcpServerIP.S_un.S_addr;
 	buffer[3] = 3600; // TTL
 	DWORD bytesReturned;
 	BOOL success = DeviceIoControl(
@@ -96,17 +108,15 @@ napi_value ConfigDhcp(napi_env env, napi_callback_info info)
 		nullptr, 0, &bytesReturned, nullptr);
 
 	napi_value result;
-	status = napi_get_boolean(env, true, &result);
+	status = napi_get_boolean(env, success == TRUE, &result);
 	assert(status == napi_ok);
 	return result;
 }
 
 // int64_t handle,
-// BYTE    optionID,
-// LPWSTR  address1,
-// LPWSTR  address2, (optional)
-// LPWSTR  address3, (optional)
-// LPWSTR  address4  (optional)
+// LPWSTR  defaultGateway,
+// LPWSTR  dns1, (optional)
+// LPWSTR  dns2, (optional)
 // returns bool
 napi_value DhcpSetOptions(napi_env env, napi_callback_info info)
 {
@@ -130,32 +140,41 @@ napi_value DhcpSetOptions(napi_env env, napi_callback_info info)
 		return nullptr;
 	}
 
-	int64_t optionID;
-	if (!GetInt64Parameter(env, args[1], &optionID))
+	IN_ADDR defaultGateway;
+	if (!GetIPv4AddressParameter(env, args[1], &defaultGateway))
 	{
 		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
 		return nullptr;
 	}
 
-	int addressCount = (int)argc - 2;
-	int bufferSize = 2 + (4 * addressCount);
+	uint8_t buffer[16];
 
-	uint8_t buffer[2 + (4 * 4)];
+	// Default gateway
+	buffer[0] = 3;
+	buffer[1] = 4;
+	memcpy(&buffer[2], &defaultGateway.S_un.S_addr, sizeof(u_long));
 
-	buffer[0] = (uint8_t)optionID;
-	buffer[1] = 4 * addressCount; // size
+	int bufferSize = 6;
 
-	for (int i = 0; i < addressCount; i++)
+	// DNS addresses
+	int dnsAddressCount = (int)argc - 2;
+	if (dnsAddressCount > 0)
 	{
-		IN_ADDR address;
-		if (!GetIPv4AddressParameter(env, args[2 + i], &address))
-		{
-			napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-			return nullptr;
-		}
+		buffer[6] = 6;
+		buffer[7] = 4 * dnsAddressCount;
 
-		u_long addressLE = htonl(address.S_un.S_addr);
-		memcpy(&buffer[2 + (4 * i)], &addressLE, sizeof(u_long));
+		bufferSize += 2 + (4 * dnsAddressCount);
+		for (int i = 0; i < dnsAddressCount; i++)
+		{
+			IN_ADDR address;
+			if (!GetIPv4AddressParameter(env, args[2 + i], &address))
+			{
+				napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
+				return nullptr;
+			}
+
+			memcpy(&buffer[8 + (4 * i)], &address.S_un.S_addr, sizeof(u_long));
+		}
 	}
 
 	DWORD bytesReturned;
@@ -320,7 +339,7 @@ static bool GetInt64Parameter(napi_env env, napi_value parameter, int64_t* value
 	napi_valuetype valuetype;
 	status = napi_typeof(env, parameter, &valuetype);
 	assert(status == napi_ok);
-	if (valuetype != napi_bigint)
+	if (valuetype != napi_number)
 	{
 		return false;
 	}
@@ -360,6 +379,7 @@ static bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR*
 	size_t strSize;
 	status = napi_get_value_string_utf16(env, parameter, nullptr, 0, &strSize);
 	assert(status == napi_ok);
+	strSize++;
 	vector<char16_t> result(strSize);
 	status = napi_get_value_string_utf16(env, parameter, result.data(), strSize, &strSize);
 	assert(status == napi_ok);
@@ -372,4 +392,91 @@ static bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR*
 
 	*value = ipAddressInfo.Ipv4Address.sin_addr;
 	return true;
+}
+
+static bool GetDeviceGuid(wstring& deviceGuid)
+{
+	HKEY keyHandle;
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, AdapterKey, 0, KEY_READ, &keyHandle) != ERROR_SUCCESS)
+	{
+		return false;
+	}
+
+	DWORD numberOfSubkeys;
+	DWORD maxSubkeyLen;
+	LSTATUS success = RegQueryInfoKey(
+		keyHandle,    
+		nullptr,
+		nullptr,
+		nullptr,      
+		&numberOfSubkeys,      
+		&maxSubkeyLen,      
+		nullptr,      
+		nullptr,     
+		nullptr,      
+		nullptr,
+		nullptr,		
+		nullptr);
+	if (success != ERROR_SUCCESS)
+	{
+		RegCloseKey(keyHandle);
+		return false;
+	}
+
+	for (DWORD i = 0; i < numberOfSubkeys; i++)
+	{
+		vector<TCHAR> subKey(maxSubkeyLen);
+		DWORD subKeySize = maxSubkeyLen;
+		success = RegEnumKeyEx(
+			keyHandle, 
+			i,
+			subKey.data(),
+			&subKeySize,
+			nullptr,
+			nullptr,
+			nullptr,
+			nullptr);
+		if (success != ERROR_SUCCESS)
+		{
+			continue;
+		}
+
+		DWORD dataSize = 20;
+		vector<TCHAR> componentId(dataSize);
+		success = RegGetValue(
+			keyHandle,
+			subKey.data(),
+			L"ComponentId",
+			RRF_RT_REG_SZ,
+			nullptr,
+			componentId.data(),
+			&dataSize);
+		if (success != ERROR_SUCCESS)
+		{
+			continue;
+		}
+
+		if (dataSize > 0 && wcsncmp(TapName, componentId.data(), 10) == 0)
+		{
+			DWORD dataSize = 80;
+			vector<TCHAR> instanceId(dataSize);
+			success = RegGetValue(
+				keyHandle,
+				subKey.data(),
+				L"NetCfgInstanceId",
+				RRF_RT_REG_SZ,
+				nullptr,
+				instanceId.data(),
+				&dataSize);
+			if (success == ERROR_SUCCESS)
+			{
+				RegCloseKey(keyHandle);
+				deviceGuid.assign(instanceId.data());
+				return true;
+			}
+		}
+	}
+
+	RegCloseKey(keyHandle);
+	return false;
 }

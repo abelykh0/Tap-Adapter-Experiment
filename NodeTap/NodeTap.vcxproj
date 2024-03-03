@@ -131,7 +131,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);node.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);node.lib;Ws2_32.lib;Iphlpapi.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)TestFiles\*.*" "$(TargetDir).." /e /y /i /r</Command>
@@ -156,7 +156,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);node.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);node.lib;Ws2_32.lib;Iphlpapi.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)TestFiles\*.*" "$(TargetDir).." /e /y /i /r</Command>
@@ -177,10 +177,8 @@
     <ClCompile Include="tap.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\test.js">
-      <DeploymentContent>true</DeploymentContent>
-    </None>
     <None Include="TestFiles\build\package.json" />
+    <None Include="TestFiles\test.js" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
