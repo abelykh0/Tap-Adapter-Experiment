@@ -17,11 +17,15 @@
 #define TAP_IOCTL_CONFIG_DHCP_MASQ      TAP_CONTROL_CODE (7, METHOD_BUFFERED)
 #define TAP_IOCTL_GET_LOG_LINE          TAP_CONTROL_CODE (8, METHOD_BUFFERED)
 #define TAP_IOCTL_CONFIG_DHCP_SET_OPT   TAP_CONTROL_CODE (9, METHOD_BUFFERED)
+#define TAP_IOCTL_CONFIG_TUN            TAP_CONTROL_CODE(10, METHOD_BUFFERED)
+#define TAP_IOCTL_CONFIG_DHCPV6_MASQ    TAP_CONTROL_CODE(11, METHOD_BUFFERED)
+#define TAP_IOCTL_CONFIG_DHCPV6_SET_OPT TAP_CONTROL_CODE(12, METHOD_BUFFERED)
 
 #define ARGUMENT_ERROR "Wrong arguments"
 
 napi_value OpenTap(napi_env env, napi_callback_info info);
 napi_value ConfigDhcp(napi_env env, napi_callback_info info);
+napi_value DhcpSetOptions(napi_env env, napi_callback_info info);
 napi_value ConfigTun(napi_env env, napi_callback_info info);
 napi_value SetMediaStatus(napi_env env, napi_callback_info info);
 napi_value CloseHandle(napi_env env, napi_callback_info info);
