@@ -1,13 +1,5 @@
-var os = require('os');
-var child_process = require('child_process');
-var buffers = require('buffers');
 var net = require('net');
-var put = require('put');
-var binary = require('binary');
 var dgram = require('dgram');
-var fs = require('fs');
-var path = require('path');
-
 var protocols = require('./protocols');
 var platform = require('./platform');
 

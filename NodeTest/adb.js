@@ -4,9 +4,7 @@ var buffers = require('buffers');
 var net = require('net');
 var put = require('put');
 var binary = require('binary');
-var assert = require('assert');
 var path = require('path');
-
 var protocols = require('./protocols');
 
 var adbConnected = false;

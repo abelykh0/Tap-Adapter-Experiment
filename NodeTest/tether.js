@@ -1,25 +1,13 @@
 // Copyright 2011 ClockworkMod, LLC.
 
 var fs = require('fs');
-var child_process = require('child_process');
-var binary = require('binary');
 var put = require('put');
-var events = require('events');
-var net = require('net');
-var sprintf = require('sprintf').sprintf;
-var util = require("util");
-var dgram = require('dgram');
 var buffers = require('buffers');
 var os = require('os');
-var path = require('path');
-var assert = require('assert');
 var rl = require('readline');
 var cluster = require('cluster');
 
 var adb;
-
-var protocols = require('./protocols');
-var platform = require('./platform');
 
 var tun = require('./tuntap');
 
@@ -162,7 +150,6 @@ function createTun(withWorker) {
     connection.socket.on('data', connection.send);
   });
 
-
   t.on('udp-connect', function(connection) {
     var relayConnection = connection.relayConnection;
     if (!relayConnection)
@@ -241,7 +228,7 @@ if (process.env.NO_TUNWORKER)
   useWorker = false;
 createTun(useWorker);
 if (cluster.isMaster) {
-  var inputInterface = rl.createInterface(process.stdin, process.stdout, null);
+  var inputInterface = rl.createInterface(process.stdin, process.stdout);
 
   inputInterface.on('line', function(line) {
     line = line.trim();

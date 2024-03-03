@@ -5,6 +5,7 @@ var handle = addon.openTap();
 
 addon.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.2");
 addon.dhcpSetOptions(handle, "10.0.0.0", "8.8.8.8", "8.8.4.4"); // DNS servers
+addon.configTun(handle, "10.0.0.0", "10.0.0.0", "255.255.255.0");
 addon.setMediaStatus(handle, true);
 
 const keypress = async () => {

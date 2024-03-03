@@ -285,9 +285,9 @@ napi_value ConfigTun(napi_env env, napi_callback_info info)
 	}
 
 	u_long buffer[3];
-	buffer[0] = htonl(localIP.S_un.S_addr);
-	buffer[1] = htonl(remoteIP.S_un.S_addr);
-	buffer[2] = htonl(remoteMask.S_un.S_addr);
+	buffer[0] = localIP.S_un.S_addr;
+	buffer[1] = remoteIP.S_un.S_addr;
+	buffer[2] = remoteMask.S_un.S_addr;
 	DWORD bytesReturned;
 	BOOL success = DeviceIoControl(
 		(HANDLE)handle,
@@ -296,7 +296,7 @@ napi_value ConfigTun(napi_env env, napi_callback_info info)
 		nullptr, 0, &bytesReturned, nullptr);
 
 	napi_value result;
-	status = napi_get_boolean(env, true, &result);
+	status = napi_get_boolean(env, success == TRUE, &result);
 	assert(status == napi_ok);
 	return result;
 }
