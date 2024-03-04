@@ -8,7 +8,12 @@
 using namespace std;
 
 static bool GetDeviceGuid(wstring& deviceGuid);
+static bool GetInt64Parameter(Env env, Value parameter, int64_t* value);
+static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value);
+static bool GetBoolParameter(Env env, Value parameter, bool* value);
 
+// ()
+// returns: HANDLE
 Value OpenTap(const CallbackInfo& info)
 {
 	Env env = info.Env();
@@ -42,100 +47,47 @@ Value OpenTap(const CallbackInfo& info)
 	return BigInt::New(env, (int64_t)handle);
 }
 
-
-/*
-using namespace std;
-
-bool GetInt64Parameter(napi_env env, napi_value parameter, int64_t* value);
-bool GetBoolParameter(napi_env env, napi_value parameter, bool* value);
-bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR* value); 
-static bool GetDeviceGuid(wstring& deviceGuid);
-
-class a : public  Napi::AsyncWorker 
-{
-}
-
-// returns HANDLE
-napi_value OpenTap(napi_env env, napi_callback_info info) 
-{
-	wstring deviceGuid;
-	if (!GetDeviceGuid(deviceGuid))
-	{
-		napi_throw_type_error(env, nullptr, CANNOT_OPEN_TAP);
-		return nullptr;
-	}
-
-	wstring tapFileName = UsermodeDeviceSpace;
-	tapFileName += deviceGuid;
-	tapFileName += L".tap";
-
-	HANDLE handle = CreateFile(
-		tapFileName.data(),
-		FILE_WRITE_ACCESS | FILE_READ_ACCESS,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		nullptr,
-		OPEN_EXISTING,
-		FILE_ATTRIBUTE_SYSTEM | FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
-		nullptr);
-
-	if (handle == INVALID_HANDLE_VALUE)
-	{
-		napi_throw_type_error(env, nullptr, CANNOT_OPEN_TAP);
-		return nullptr;
-	}
-
-	napi_value result;
-	napi_status status = napi_create_int64(env, (int64_t)handle, &result);
-	assert(status == napi_ok);
-	return result;
-}
-
 // int64_t  handle,
 // LPWSTR   ipAddress,
 // LPWSTR   mask,
 // LPWSTR   dhcpServerIP
-// returns bool
-napi_value ConfigDhcp(napi_env env, napi_callback_info info)
+// returns: bool
+Value ConfigDhcp(const CallbackInfo& info)
 {
-	napi_status status;
+	Env env = info.Env();
 
-	size_t argc = 4;
-	napi_value args[4];
-	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-	assert(status == napi_ok);
-
-	if (argc < 4) 
+	if (info.Length() < 4) 
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	int64_t handle;
-	if (!GetInt64Parameter(env, args[0], &handle))
+	if (!GetInt64Parameter(env, info[0], &handle))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR ipAddress;
-	if (!GetIPv4AddressParameter(env, args[1], &ipAddress))
+	if (!GetIPv4AddressParameter(env, info[1], &ipAddress))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR mask;
-	if (!GetIPv4AddressParameter(env, args[2], &mask))
+	if (!GetIPv4AddressParameter(env, info[2], &mask))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR dhcpServerIP;
-	if (!GetIPv4AddressParameter(env, args[3], &dhcpServerIP))
+	if (!GetIPv4AddressParameter(env, info[3], &dhcpServerIP))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	u_long buffer[4];
@@ -150,10 +102,7 @@ napi_value ConfigDhcp(napi_env env, napi_callback_info info)
 		buffer, 16,
 		nullptr, 0, &bytesReturned, nullptr);
 
-	napi_value result;
-	status = napi_get_boolean(env, success == TRUE, &result);
-	assert(status == napi_ok);
-	return result;
+	return Boolean::New(env, success == TRUE);
 }
 
 // int64_t handle,
@@ -161,33 +110,28 @@ napi_value ConfigDhcp(napi_env env, napi_callback_info info)
 // LPWSTR  dns1, (optional)
 // LPWSTR  dns2, (optional)
 // returns bool
-napi_value DhcpSetOptions(napi_env env, napi_callback_info info)
+Value DhcpSetOptions(const CallbackInfo& info)
 {
-	napi_status status;
+	Env env = info.Env();
 
-	size_t argc = 6;
-	napi_value args[6];
-	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-	assert(status == napi_ok);
-
-	if (argc < 3)
+	if (info.Length() < 2)
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	int64_t handle;
-	if (!GetInt64Parameter(env, args[0], &handle))
+	if (!GetInt64Parameter(env, info[0], &handle))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR defaultGateway;
-	if (!GetIPv4AddressParameter(env, args[1], &defaultGateway))
+	if (!GetIPv4AddressParameter(env, info[1], &defaultGateway))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	uint8_t buffer[16];
@@ -200,7 +144,7 @@ napi_value DhcpSetOptions(napi_env env, napi_callback_info info)
 	int bufferSize = 6;
 
 	// DNS addresses
-	int dnsAddressCount = (int)argc - 2;
+	int dnsAddressCount = (int)info.Length() - 2;
 	if (dnsAddressCount > 0)
 	{
 		buffer[6] = 6;
@@ -210,10 +154,10 @@ napi_value DhcpSetOptions(napi_env env, napi_callback_info info)
 		for (int i = 0; i < dnsAddressCount; i++)
 		{
 			IN_ADDR address;
-			if (!GetIPv4AddressParameter(env, args[2 + i], &address))
+			if (!GetIPv4AddressParameter(env, info[2 + i], &address))
 			{
-				napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-				return nullptr;
+				TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+				return env.Null();
 			}
 
 			memcpy(&buffer[8 + (4 * i)], &address.S_un.S_addr, sizeof(u_long));
@@ -227,104 +171,50 @@ napi_value DhcpSetOptions(napi_env env, napi_callback_info info)
 		buffer, bufferSize,
 		nullptr, 0, &bytesReturned, nullptr);
 
-	napi_value result;
-	status = napi_get_boolean(env, success == TRUE, &result);
-	assert(status == napi_ok);
-	return result;
+	return Boolean::New(env, success == TRUE);
 }
 
-// int64_t handle,
-// bool    connected
-// returns bool
-napi_value SetMediaStatus(napi_env env, napi_callback_info info)
+// int64_t  handle,
+// LPWSTR   localIP,
+// LPWSTR   remoteIP,
+// LPWSTR   remoteMask
+// returns: bool
+Value ConfigTun(const CallbackInfo& info)
 {
-	napi_status status;
+	Env env = info.Env();
 
-	size_t argc = 2;
-	napi_value args[2];
-	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-	assert(status == napi_ok);
-
-	if (argc < 2) 
+	if (info.Length() < 4)
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	int64_t handle;
-	if (!GetInt64Parameter(env, args[0], &handle))
+	if (!GetInt64Parameter(env, info[0], &handle))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
-	}
-
-	bool connected;
-	if (!GetBoolParameter(env, args[1], &connected))
-	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
-	}
-
-	int32_t setStatus = connected ? TRUE : FALSE;
-	DWORD bytesReturned;
-	BOOL success = DeviceIoControl(
-		(HANDLE)handle,
-		TAP_IOCTL_SET_MEDIA_STATUS,
-		&setStatus, sizeof(int32_t),
-		nullptr, 0, &bytesReturned, nullptr);
-
-	napi_value result;
-	status = napi_get_boolean(env, success == TRUE, &result);
-	assert(status == napi_ok);
-	return result;
-}
-
-// int64_t handle,
-// LPWSTR  localIP,
-// LPWSTR  remoteIP,
-// LPWSTR  remoteMask
-// returns bool
-napi_value ConfigTun(napi_env env, napi_callback_info info)
-{
-	napi_status status;
-
-	size_t argc = 4;
-	napi_value args[4];
-	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-	assert(status == napi_ok);
-
-	if (argc < 4)
-	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
-	}
-
-	int64_t handle;
-	if (!GetInt64Parameter(env, args[0], &handle))
-	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR localIP;
-	if (!GetIPv4AddressParameter(env, args[1], &localIP))
+	if (!GetIPv4AddressParameter(env, info[1], &localIP))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR remoteIP;
-	if (!GetIPv4AddressParameter(env, args[2], &remoteIP))
+	if (!GetIPv4AddressParameter(env, info[2], &remoteIP))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	IN_ADDR remoteMask;
-	if (!GetIPv4AddressParameter(env, args[3], &remoteMask))
+	if (!GetIPv4AddressParameter(env, info[3], &remoteMask))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	u_long buffer[3];
@@ -338,107 +228,155 @@ napi_value ConfigTun(napi_env env, napi_callback_info info)
 		buffer, 12,
 		nullptr, 0, &bytesReturned, nullptr);
 
-	napi_value result;
-	status = napi_get_boolean(env, success == TRUE, &result);
-	assert(status == napi_ok);
-	return result;
+	return Boolean::New(env, success == TRUE);
+}
+
+// int64_t  handle,
+// bool     connected
+// returns: bool
+Value SetMediaStatus(const CallbackInfo& info)
+{
+	Env env = info.Env();
+
+	if (info.Length() < 2)
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int64_t handle;
+	if (!GetInt64Parameter(env, info[0], &handle))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	bool connected;
+	if (!GetBoolParameter(env, info[1], &connected))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int32_t setStatus = connected ? TRUE : FALSE;
+	DWORD bytesReturned;
+	BOOL success = DeviceIoControl(
+		(HANDLE)handle,
+		TAP_IOCTL_SET_MEDIA_STATUS,
+		&setStatus, sizeof(int32_t),
+		nullptr, 0, &bytesReturned, nullptr);
+
+	return Boolean::New(env, success == TRUE);
 }
 
 // int64_t handle
 // TBuffer buffer,
 // int32_t length,
 // callback : (err : NodeJS.ErrnoException | null, bytesRead : number, buffer : TBuffer) = > void,
-napi_value Read(napi_env env, napi_callback_info info)
+Value Read(const CallbackInfo& info)
 {
-	napi_status status;
+	Env env = info.Env();
 
-	size_t argc = 4;
-	napi_value args[4];
-	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-	assert(status == napi_ok);
-
-	if (argc < 4)
+	if (info.Length() < 1)
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	int64_t handle;
-	if (!GetInt64Parameter(env, args[0], &handle))
+	if (!GetInt64Parameter(env, info[0], &handle))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
-	void* buffer;
-	size_t byteLength;
-	if (!GetBufferParameter(env, args[1], &buffer, &byteLength))
-	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
-	}
-
-	int64_t length;
-	if (!GetInt64Parameter(env, args[2], &length))
-	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
-	}
+	// buffer
 
 
+	Napi::Function callback = info[3].As<Napi::Function>();
 
+	callback.Call(env.Global(), 
+		{ 
+			Napi::String::New(env, "hello world"), // 
+		});
 
-
+	return env.Null();
 }
 
 // int64_t handle
 // TBuffer buffer,
 // int64_t length,
 // callback : (err : NodeJS.ErrnoException | null, bytesRead : number, buffer : TBuffer) = > void,
-napi_value Write(napi_env env, napi_callback_info info)
+Value Write(const CallbackInfo& info)
 {
+	Env env = info.Env();
 
+	if (info.Length() < 1)
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int64_t handle;
+	if (!GetInt64Parameter(env, info[0], &handle))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+
+	return env.Null();
 }
 
 // int64_t handle
 // TBuffer buffer,
 // int64_t length,
-napi_value WriteSync(napi_env env, napi_callback_info info)
+Value WriteSync(const CallbackInfo& info)
 {
+	Env env = info.Env();
 
+	if (info.Length() < 1)
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int64_t handle;
+	if (!GetInt64Parameter(env, info[0], &handle))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+
+	return env.Null();
 }
 
 // int64_t handle
 // returns bool
-napi_value CloseHandle(napi_env env, napi_callback_info info)
+Value CloseHandle(const CallbackInfo& info)
 {
-	napi_status status;
+	Env env = info.Env();
 
-	size_t argc = 1;
-	napi_value args[1];
-	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-	assert(status == napi_ok);
-
-	if (argc < 1) 
+	if (info.Length() < 1)
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	int64_t handle;
-	if (!GetInt64Parameter(env, args[0], &handle))
+	if (!GetInt64Parameter(env, info[0], &handle))
 	{
-		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
-		return nullptr;
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
 	}
 
 	BOOL success = CloseHandle((HANDLE)handle);
 
-	napi_value result;
-	status = napi_get_boolean(env, success == TRUE, &result);
-	assert(status == napi_ok);
-	return result;
+	return Boolean::New(env, success == TRUE);
 }
+
+/*
 
 static bool GetBufferParameter(napi_env env, napi_value parameter, void** buffer, size_t* byteLength)
 {
@@ -464,68 +402,8 @@ static bool GetBufferParameter(napi_env env, napi_value parameter, void** buffer
 
 	return true;
 }
-
-static bool GetInt64Parameter(napi_env env, napi_value parameter, int64_t* value)
-{
-	napi_status status;
-	napi_valuetype valuetype;
-	status = napi_typeof(env, parameter, &valuetype);
-	assert(status == napi_ok);
-	if (valuetype != napi_number)
-	{
-		return false;
-	}
-
-	status = napi_get_value_int64(env, parameter, value);
-	assert(status == napi_ok);
-	return true;
-}
-
-static bool GetBoolParameter(napi_env env, napi_value parameter, bool* value)
-{
-	napi_status status;
-	napi_valuetype valuetype;
-	status = napi_typeof(env, parameter, &valuetype);
-	assert(status == napi_ok);
-	if (valuetype != napi_boolean)
-	{
-		return false;
-	}
-
-	status = napi_get_value_bool(env, parameter, value);
-	assert(status == napi_ok);
-	return true;
-}
-
-static bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR* value)
-{
-	napi_status status;
-	napi_valuetype valuetype;
-	status = napi_typeof(env, parameter, &valuetype);
-	assert(status == napi_ok);
-	if (valuetype != napi_string)
-	{
-		return false;
-	}
-
-	size_t strSize;
-	status = napi_get_value_string_utf16(env, parameter, nullptr, 0, &strSize);
-	assert(status == napi_ok);
-	strSize++;
-	vector<char16_t> result(strSize);
-	status = napi_get_value_string_utf16(env, parameter, result.data(), strSize, &strSize);
-	assert(status == napi_ok);
-	NET_ADDRESS_INFO ipAddressInfo;
-	DWORD parseResult = ParseNetworkString((WCHAR*)result.data(), NET_STRING_IPV4_ADDRESS, &ipAddressInfo, nullptr, nullptr);
-	if (parseResult != ERROR_SUCCESS)
-	{
-		return false;
-	}
-
-	*value = ipAddressInfo.Ipv4Address.sin_addr;
-	return true;
-}
 */
+
 static bool GetDeviceGuid(wstring& deviceGuid)
 {
 	HKEY keyHandle;
@@ -611,4 +489,48 @@ static bool GetDeviceGuid(wstring& deviceGuid)
 
 	RegCloseKey(keyHandle);
 	return false;
+}
+
+static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value)
+{
+	if (!parameter.IsString())
+	{
+		return false;
+	}
+
+	auto parameterValue = parameter.As<String>().Utf16Value();
+
+	NET_ADDRESS_INFO ipAddressInfo;
+	DWORD parseResult = ParseNetworkString((WCHAR*)parameterValue.data(), NET_STRING_IPV4_ADDRESS, &ipAddressInfo, nullptr, nullptr);
+	if (parseResult != ERROR_SUCCESS)
+	{
+		return false;
+	}
+
+	*value = ipAddressInfo.Ipv4Address.sin_addr;
+	return true;
+}
+
+static bool GetInt64Parameter(Env env, Value parameter, int64_t* value)
+{
+	if (!parameter.IsNumber())
+	{
+		return false;
+	}
+
+	*value = parameter.As<Number>().Int64Value();
+
+	return true;
+}
+
+static bool GetBoolParameter(Env env, Value parameter, bool* value)
+{
+	if (!parameter.IsBoolean())
+	{
+		return false;
+	}
+
+	*value = parameter.As<Boolean>().Value();
+
+	return true;
 }

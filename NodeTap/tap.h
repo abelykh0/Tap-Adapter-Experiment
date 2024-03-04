@@ -30,12 +30,11 @@ constexpr auto CANNOT_OPEN_TAP = "Error opening tap file";
 Object Init(Env env, Object exports);
 
 Value OpenTap(const CallbackInfo& info);
-
-//napi_value ConfigDhcp(napi_env env, napi_callback_info info);
-//napi_value DhcpSetOptions(napi_env env, napi_callback_info info);
-//napi_value ConfigTun(napi_env env, napi_callback_info info);
-//napi_value SetMediaStatus(napi_env env, napi_callback_info info);
-//napi_value CloseHandle(napi_env env, napi_callback_info info);
-//napi_value Read(napi_env env, napi_callback_info info);
-//napi_value Write(napi_env env, napi_callback_info info);
-//napi_value WriteSync(napi_env env, napi_callback_info info);
+Value ConfigDhcp(const CallbackInfo& info);
+Value DhcpSetOptions(const CallbackInfo& info);
+Value ConfigTun(const CallbackInfo& info);
+Value SetMediaStatus(const CallbackInfo& info);
+Value Read(const CallbackInfo& info);
+Value Write(const CallbackInfo& info);
+Value WriteSync(const CallbackInfo& info);
+Value CloseHandle(const CallbackInfo& info);
