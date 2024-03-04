@@ -73,13 +73,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>C:\ProgramFiles\node-v20.11.1\src;C:\ProgramFiles\node-v20.11.1\deps\uv\include;C:\ProgramFiles\node-v20.11.1\deps\v8\include;$(IncludePath)</IncludePath>
     <TargetExt>.node</TargetExt>
-    <LibraryPath>C:\ProgramFiles\node-v20.11.1\out\Release\lib;C:\ProgramFiles\node-v20.11.1\out\Release;$(LibraryPath)</LibraryPath>
+    <LibraryPath>lib;$(LibraryPath)</LibraryPath>
     <OutDir>$(Platform)\$(Configuration)\build\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\ProgramFiles\node-v20.11.1\src;C:\ProgramFiles\node-v20.11.1\deps\uv\include;C:\ProgramFiles\node-v20.11.1\deps\v8\include;$(IncludePath)</IncludePath>
     <TargetExt>.node</TargetExt>
-    <LibraryPath>C:\ProgramFiles\node-v20.11.1\out\Release\lib;C:\ProgramFiles\node-v20.11.1\out\Release;$(LibraryPath)</LibraryPath>
+    <LibraryPath>lib;$(LibraryPath)</LibraryPath>
     <OutDir>$(Platform)\$(Configuration)\build\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
