@@ -2,13 +2,17 @@
 var nodetap = require('bindings')('./nodetap');
 
 var handle = nodetap.openTap();
-console.log(handle + ' ' + typeof(handle));
+nodetap.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.2");
+nodetap.dhcpSetOptions(handle, "10.0.0.0", "8.8.8.8", "8.8.4.4"); // DNS servers
+nodetap.configTun(handle, "10.0.0.0", "10.0.0.0", "255.255.255.0");
+nodetap.setMediaStatus(handle, true);
 
+reader = function (err, buffer, length) {
+    console.log('in reader callback')
+}
 
-//addon.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.2");
-//addon.dhcpSetOptions(handle, "10.0.0.0", "8.8.8.8", "8.8.4.4"); // DNS servers
-//addon.configTun(handle, "10.0.0.0", "10.0.0.0", "255.255.255.0");
-//addon.setMediaStatus(handle, true);
+var buffer = Buffer.alloc(65535);
+nodetap.read(handle, buffer, buffer.length, reader);
 
 const keypress = async () => {
     process.stdin.setRawMode(true)

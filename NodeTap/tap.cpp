@@ -315,8 +315,8 @@ Value Read(const CallbackInfo& info)
 
 	Function callback = info[3].As<Function>();
 
-	ReadAsyncWorker worker(callback, (HANDLE)handle, buffer, (int)length);
-	worker.Queue();
+	ReadAsyncWorker* worker = new ReadAsyncWorker(callback, (HANDLE)handle, buffer, (int)length);
+	worker->Queue();
 
 	return env.Null();
 }
@@ -363,8 +363,8 @@ Value Write(const CallbackInfo& info)
 
 	Function callback = info[3].As<Function>();
 
-	WriteAsyncWorker worker(callback, (HANDLE)handle, buffer, (int)length);
-	worker.Queue();
+	WriteAsyncWorker* worker = new WriteAsyncWorker(callback, (HANDLE)handle, buffer, (int)length);
+	worker->Queue();
 
 	return env.Null();
 }
@@ -548,12 +548,19 @@ static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value)
 
 static bool GetInt64Parameter(Env env, Value parameter, int64_t* value)
 {
-	if (!parameter.IsNumber())
+	if (parameter.IsNumber())
+	{
+		*value = parameter.As<Number>().Int64Value();
+		return true;
+	}
+
+	if (!parameter.IsBigInt())
 	{
 		return false;
 	}
 
-	*value = parameter.As<Number>().Int64Value();
+	bool lossless;
+	*value = parameter.As<BigInt>().Int64Value(&lossless);
 
 	return true;
 }
