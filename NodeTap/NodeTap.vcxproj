@@ -166,9 +166,11 @@
     <ClInclude Include="napi-inl.h" />
     <ClInclude Include="napi.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="readasyncworker.h" />
     <ClInclude Include="tap.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="readasyncworker.cpp" />
     <ClCompile Include="nodetap.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

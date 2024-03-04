@@ -37,4 +37,4 @@ Value SetMediaStatus(const CallbackInfo& info);
 Value Read(const CallbackInfo& info);
 Value Write(const CallbackInfo& info);
 Value WriteSync(const CallbackInfo& info);
-Value CloseHandle(const CallbackInfo& info);
+Value Close(const CallbackInfo& info);

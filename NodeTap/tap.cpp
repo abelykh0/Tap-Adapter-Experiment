@@ -1,9 +1,11 @@
 #include "pch.h"
-#include "tap.h"
 #include <assert.h>
 #include <iphlpapi.h>
 #include <string>
 #include <vector>
+
+#include "tap.h"
+#include "readasyncworker.h"
 
 using namespace std;
 
@@ -11,6 +13,7 @@ static bool GetDeviceGuid(wstring& deviceGuid);
 static bool GetInt64Parameter(Env env, Value parameter, int64_t* value);
 static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value);
 static bool GetBoolParameter(Env env, Value parameter, bool* value);
+static bool GetBufferParameter(Env env, Value parameter, Uint8Array* value);
 
 // ()
 // returns: HANDLE
@@ -154,7 +157,7 @@ Value DhcpSetOptions(const CallbackInfo& info)
 		for (int i = 0; i < dnsAddressCount; i++)
 		{
 			IN_ADDR address;
-			if (!GetIPv4AddressParameter(env, info[2 + i], &address))
+			if (!GetIPv4AddressParameter(env, info[2 + static_cast<size_t>(i)], &address))
 			{
 				TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
 				return env.Null();
@@ -277,7 +280,7 @@ Value Read(const CallbackInfo& info)
 {
 	Env env = info.Env();
 
-	if (info.Length() < 1)
+	if (info.Length() < 4)
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
 		return env.Null();
@@ -290,14 +293,32 @@ Value Read(const CallbackInfo& info)
 		return env.Null();
 	}
 
-	// buffer
+	Uint8Array buffer;
+	if (!GetBufferParameter(env, info[1], &buffer))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
 
+	int64_t length;
+	if (!GetInt64Parameter(env, info[2], &length))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	if ((int64_t)buffer.ByteLength() < length)
+	{
+		length = buffer.ByteLength();
+	}
 
 	Napi::Function callback = info[3].As<Napi::Function>();
 
 	callback.Call(env.Global(), 
 		{ 
-			Napi::String::New(env, "hello world"), // 
+			Napi::String::New(env, "hello world"), // error
+			Napi::String::New(env, "hello world"), // bytes read
+			Napi::String::New(env, "hello world")  // buffer
 		});
 
 	return env.Null();
@@ -311,7 +332,7 @@ Value Write(const CallbackInfo& info)
 {
 	Env env = info.Env();
 
-	if (info.Length() < 1)
+	if (info.Length() < 4)
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
 		return env.Null();
@@ -324,13 +345,44 @@ Value Write(const CallbackInfo& info)
 		return env.Null();
 	}
 
+	Uint8Array buffer;
+	if (!GetBufferParameter(env, info[1], &buffer))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int64_t length;
+	if (!GetInt64Parameter(env, info[2], &length))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	if ((int64_t)buffer.ByteLength() < length)
+	{
+		length = buffer.ByteLength();
+	}
+
+	Function callback = info[3].As<Function>();
+
+	ReadAsyncWorker worker(callback, (HANDLE)handle, buffer, (int)length);
+	worker.Queue();
+
+	callback.Call(env.Global(),
+		{
+			Napi::String::New(env, "hello world"), // error
+			Napi::String::New(env, "hello world"), // bytes read
+			Napi::String::New(env, "hello world")  // buffer
+		});
 
 	return env.Null();
 }
 
-// int64_t handle
-// TBuffer buffer,
-// int64_t length,
+// int64_t  handle
+// TBuffer  buffer,
+// int64_t  length,
+// returns: bool
 Value WriteSync(const CallbackInfo& info)
 {
 	Env env = info.Env();
@@ -348,13 +400,34 @@ Value WriteSync(const CallbackInfo& info)
 		return env.Null();
 	}
 
+	Uint8Array buffer;
+	if (!GetBufferParameter(env, info[1], &buffer))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
 
-	return env.Null();
+	int64_t length;
+	if (!GetInt64Parameter(env, info[2], &length))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	if ((int64_t)buffer.ByteLength() < length)
+	{
+		length = buffer.ByteLength();
+	}
+
+	DWORD bytesWritten;
+	BOOL success = WriteFile((HANDLE)handle, buffer.Data(), (DWORD)length, &bytesWritten, nullptr);
+
+	return Boolean::New(env, success == TRUE);
 }
 
 // int64_t handle
 // returns bool
-Value CloseHandle(const CallbackInfo& info)
+Value Close(const CallbackInfo& info)
 {
 	Env env = info.Env();
 
@@ -375,34 +448,6 @@ Value CloseHandle(const CallbackInfo& info)
 
 	return Boolean::New(env, success == TRUE);
 }
-
-/*
-
-static bool GetBufferParameter(napi_env env, napi_value parameter, void** buffer, size_t* byteLength)
-{
-	napi_status status;
-	napi_valuetype valuetype;
-	status = napi_typeof(env, parameter, &valuetype);
-	assert(status == napi_ok);
-	if (valuetype != napi_object)
-	{
-		return false;
-	}
-
-	bool isArrayBuff;
-	status = napi_is_arraybuffer(env, parameter, &isArrayBuff);
-	assert(status == napi_ok);
-	if (!isArrayBuff)
-	{
-		return false;
-	}
-
-	napi_get_arraybuffer_info(env, parameter, value, byteLength);
-	assert(status == napi_ok);
-
-	return true;
-}
-*/
 
 static bool GetDeviceGuid(wstring& deviceGuid)
 {
@@ -531,6 +576,18 @@ static bool GetBoolParameter(Env env, Value parameter, bool* value)
 	}
 
 	*value = parameter.As<Boolean>().Value();
+
+	return true;
+}
+
+static bool GetBufferParameter(Env env, Value parameter, Uint8Array* value)
+{
+	if (!parameter.IsBuffer())
+	{
+		return false;
+	}
+
+	*value = parameter.As<Uint8Array>();
 
 	return true;
 }
