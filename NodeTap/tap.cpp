@@ -6,6 +6,7 @@
 
 #include "tap.h"
 #include "readasyncworker.h"
+#include "writeasyncworker.h"
 
 using namespace std;
 
@@ -312,14 +313,10 @@ Value Read(const CallbackInfo& info)
 		length = buffer.ByteLength();
 	}
 
-	Napi::Function callback = info[3].As<Napi::Function>();
+	Function callback = info[3].As<Function>();
 
-	callback.Call(env.Global(), 
-		{ 
-			Napi::String::New(env, "hello world"), // error
-			Napi::String::New(env, "hello world"), // bytes read
-			Napi::String::New(env, "hello world")  // buffer
-		});
+	ReadAsyncWorker worker(callback, (HANDLE)handle, buffer, (int)length);
+	worker.Queue();
 
 	return env.Null();
 }
@@ -366,15 +363,8 @@ Value Write(const CallbackInfo& info)
 
 	Function callback = info[3].As<Function>();
 
-	ReadAsyncWorker worker(callback, (HANDLE)handle, buffer, (int)length);
+	WriteAsyncWorker worker(callback, (HANDLE)handle, buffer, (int)length);
 	worker.Queue();
-
-	callback.Call(env.Global(),
-		{
-			Napi::String::New(env, "hello world"), // error
-			Napi::String::New(env, "hello world"), // bytes read
-			Napi::String::New(env, "hello world")  // buffer
-		});
 
 	return env.Null();
 }
