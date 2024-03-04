@@ -27,6 +27,12 @@
     <ClInclude Include="tap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="napi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="napi-inl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="nodetap.cpp">

@@ -119,6 +119,10 @@ function tun(device, tunIP, options) {
     console.log('Opening tun device: ' + device);
 
     tunFile = setupTun();
+
+    var b = new Buffer(65536);
+    fs.closeSync(tunFile);
+    var r = fs.readSync(tunFile, b, 0, b.length, null);
 /*
     if (err) {
         console.log('Unable to open tun device! Exiting.');

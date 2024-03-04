@@ -7,10 +7,53 @@
 
 using namespace std;
 
+static bool GetDeviceGuid(wstring& deviceGuid);
+
+Value OpenTap(const CallbackInfo& info)
+{
+	Env env = info.Env();
+
+	wstring deviceGuid;
+	if (!GetDeviceGuid(deviceGuid))
+	{
+		TypeError::New(env, CANNOT_OPEN_TAP).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	wstring tapFileName = UsermodeDeviceSpace;
+	tapFileName += deviceGuid;
+	tapFileName += L".tap";
+
+	HANDLE handle = CreateFile(
+		tapFileName.data(),
+		FILE_WRITE_ACCESS | FILE_READ_ACCESS,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		nullptr,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_SYSTEM | FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
+		nullptr);
+
+	if (handle == INVALID_HANDLE_VALUE)
+	{
+		TypeError::New(env, CANNOT_OPEN_TAP).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	return BigInt::New(env, (int64_t)handle);
+}
+
+
+/*
+using namespace std;
+
 bool GetInt64Parameter(napi_env env, napi_value parameter, int64_t* value);
 bool GetBoolParameter(napi_env env, napi_value parameter, bool* value);
 bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR* value); 
 static bool GetDeviceGuid(wstring& deviceGuid);
+
+class a : public  Napi::AsyncWorker 
+{
+}
 
 // returns HANDLE
 napi_value OpenTap(napi_env env, napi_callback_info info) 
@@ -302,6 +345,70 @@ napi_value ConfigTun(napi_env env, napi_callback_info info)
 }
 
 // int64_t handle
+// TBuffer buffer,
+// int32_t length,
+// callback : (err : NodeJS.ErrnoException | null, bytesRead : number, buffer : TBuffer) = > void,
+napi_value Read(napi_env env, napi_callback_info info)
+{
+	napi_status status;
+
+	size_t argc = 4;
+	napi_value args[4];
+	status = napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+	assert(status == napi_ok);
+
+	if (argc < 4)
+	{
+		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
+		return nullptr;
+	}
+
+	int64_t handle;
+	if (!GetInt64Parameter(env, args[0], &handle))
+	{
+		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
+		return nullptr;
+	}
+
+	void* buffer;
+	size_t byteLength;
+	if (!GetBufferParameter(env, args[1], &buffer, &byteLength))
+	{
+		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
+		return nullptr;
+	}
+
+	int64_t length;
+	if (!GetInt64Parameter(env, args[2], &length))
+	{
+		napi_throw_type_error(env, nullptr, ARGUMENT_ERROR);
+		return nullptr;
+	}
+
+
+
+
+
+}
+
+// int64_t handle
+// TBuffer buffer,
+// int64_t length,
+// callback : (err : NodeJS.ErrnoException | null, bytesRead : number, buffer : TBuffer) = > void,
+napi_value Write(napi_env env, napi_callback_info info)
+{
+
+}
+
+// int64_t handle
+// TBuffer buffer,
+// int64_t length,
+napi_value WriteSync(napi_env env, napi_callback_info info)
+{
+
+}
+
+// int64_t handle
 // returns bool
 napi_value CloseHandle(napi_env env, napi_callback_info info)
 {
@@ -331,6 +438,31 @@ napi_value CloseHandle(napi_env env, napi_callback_info info)
 	status = napi_get_boolean(env, success == TRUE, &result);
 	assert(status == napi_ok);
 	return result;
+}
+
+static bool GetBufferParameter(napi_env env, napi_value parameter, void** buffer, size_t* byteLength)
+{
+	napi_status status;
+	napi_valuetype valuetype;
+	status = napi_typeof(env, parameter, &valuetype);
+	assert(status == napi_ok);
+	if (valuetype != napi_object)
+	{
+		return false;
+	}
+
+	bool isArrayBuff;
+	status = napi_is_arraybuffer(env, parameter, &isArrayBuff);
+	assert(status == napi_ok);
+	if (!isArrayBuff)
+	{
+		return false;
+	}
+
+	napi_get_arraybuffer_info(env, parameter, value, byteLength);
+	assert(status == napi_ok);
+
+	return true;
 }
 
 static bool GetInt64Parameter(napi_env env, napi_value parameter, int64_t* value)
@@ -393,7 +525,7 @@ static bool GetIPv4AddressParameter(napi_env env, napi_value parameter, IN_ADDR*
 	*value = ipAddressInfo.Ipv4Address.sin_addr;
 	return true;
 }
-
+*/
 static bool GetDeviceGuid(wstring& deviceGuid)
 {
 	HKEY keyHandle;

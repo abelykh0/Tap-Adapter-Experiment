@@ -163,6 +163,8 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="napi-inl.h" />
+    <ClInclude Include="napi.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="tap.h" />
   </ItemGroup>

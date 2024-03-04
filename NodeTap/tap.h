@@ -2,9 +2,11 @@
 
 #include <winioctl.h>
 
-#define UsermodeDeviceSpace L"\\\\.\\Global\\"
-#define AdapterKey          L"SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
-#define TapName             L"TAP0901"
+using namespace Napi;
+
+constexpr auto UsermodeDeviceSpace = L"\\\\.\\Global\\";
+constexpr auto AdapterKey = L"SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}";
+constexpr auto TapName = L"TAP0901";
 
 #define TAP_CONTROL_CODE(request,method) \
   CTL_CODE (FILE_DEVICE_UNKNOWN, request, method, FILE_ANY_ACCESS)
@@ -22,12 +24,18 @@
 #define TAP_IOCTL_CONFIG_DHCPV6_MASQ    TAP_CONTROL_CODE(11, METHOD_BUFFERED)
 #define TAP_IOCTL_CONFIG_DHCPV6_SET_OPT TAP_CONTROL_CODE(12, METHOD_BUFFERED)
 
-#define ARGUMENT_ERROR "Wrong arguments"
-#define CANNOT_OPEN_TAP "Error opening tap file"
+constexpr auto ARGUMENT_ERROR = "Wrong arguments";
+constexpr auto CANNOT_OPEN_TAP = "Error opening tap file";
 
-napi_value OpenTap(napi_env env, napi_callback_info info);
-napi_value ConfigDhcp(napi_env env, napi_callback_info info);
-napi_value DhcpSetOptions(napi_env env, napi_callback_info info);
-napi_value ConfigTun(napi_env env, napi_callback_info info);
-napi_value SetMediaStatus(napi_env env, napi_callback_info info);
-napi_value CloseHandle(napi_env env, napi_callback_info info);
+Object Init(Env env, Object exports);
+
+Value OpenTap(const CallbackInfo& info);
+
+//napi_value ConfigDhcp(napi_env env, napi_callback_info info);
+//napi_value DhcpSetOptions(napi_env env, napi_callback_info info);
+//napi_value ConfigTun(napi_env env, napi_callback_info info);
+//napi_value SetMediaStatus(napi_env env, napi_callback_info info);
+//napi_value CloseHandle(napi_env env, napi_callback_info info);
+//napi_value Read(napi_env env, napi_callback_info info);
+//napi_value Write(napi_env env, napi_callback_info info);
+//napi_value WriteSync(napi_env env, napi_callback_info info);

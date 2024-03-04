@@ -1,12 +1,14 @@
 // JavaScript source code
-var addon = require('bindings')('./nodetap');
+var nodetap = require('bindings')('./nodetap');
 
-var handle = addon.openTap();
+var handle = nodetap.openTap();
+console.log(handle + ' ' + typeof(handle));
 
-addon.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.2");
-addon.dhcpSetOptions(handle, "10.0.0.0", "8.8.8.8", "8.8.4.4"); // DNS servers
-addon.configTun(handle, "10.0.0.0", "10.0.0.0", "255.255.255.0");
-addon.setMediaStatus(handle, true);
+
+//addon.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.2");
+//addon.dhcpSetOptions(handle, "10.0.0.0", "8.8.8.8", "8.8.4.4"); // DNS servers
+//addon.configTun(handle, "10.0.0.0", "10.0.0.0", "255.255.255.0");
+//addon.setMediaStatus(handle, true);
 
 const keypress = async () => {
     process.stdin.setRawMode(true)

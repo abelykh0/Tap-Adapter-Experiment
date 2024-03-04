@@ -7,6 +7,6 @@
 #include <winsock2.h>
 #include <ws2ipdef.h>
 #include <windns.h>
-#include <node_api.h>
+#include "napi.h"
 
 #endif //PCH_H
