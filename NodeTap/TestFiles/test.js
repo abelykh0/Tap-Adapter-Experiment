@@ -12,7 +12,8 @@ reader = function (err, buffer, length) {
 }
 
 var buffer = Buffer.alloc(65535);
-nodetap.read(handle, buffer, buffer.length, reader);
+//nodetap.read(handle, buffer, buffer.length, reader);
+var bytesRead = nodetap.readSync(handle, buffer, buffer.length);
 
 const keypress = async () => {
     process.stdin.setRawMode(true)

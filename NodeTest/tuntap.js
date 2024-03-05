@@ -80,9 +80,9 @@ function trimConnection(c) {
 function setupTun() {
     var handle = nodetap.openTap();
 
-    nodetap.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.2");
+    nodetap.configDhcp(handle, "10.0.0.1", "255.255.255.0", "10.0.0.254");
     nodetap.dhcpSetOptions(handle,
-        "10.0.0.0",          // Default gateway
+        "10.0.0.2",          // Default gateway
         "8.8.8.8", "8.8.4.4" // DNS servers
     );
     nodetap.configTun(handle, "10.0.0.1", "10.0.0.0", "255.255.255.0");
@@ -103,7 +103,7 @@ function tun(device, tunIP, options) {
     this.close = function (cb) {
         tunthis.removeAllListeners();
         if (tunFile) {
-            fs.closeSync(tunFile);
+            nodetap.close(tunFile);
             tunFile = null;
         }
         if (tunthis.tcpCatcher) {
@@ -120,17 +120,14 @@ function tun(device, tunIP, options) {
 
     tunFile = setupTun();
 
-    var b = new Buffer(65536);
-    fs.closeSync(tunFile);
-    var r = fs.readSync(tunFile, b, 0, b.length, null);
-/*
-    if (err) {
-        console.log('Unable to open tun device! Exiting.');
-        console.log(err);
-        process.exit(1);
-        return;
-    }
-*/
+    /*
+        if (err) {
+            console.log('Unable to open tun device! Exiting.');
+            console.log(err);
+            process.exit(1);
+            return;
+        }
+    */
 
     {
         var packetWriting = false;
@@ -153,7 +150,7 @@ function tun(device, tunIP, options) {
             if (!tunFile)
                 return;
             packetWriting = true;
-            fs.write(tunFile, packet, 0, packet.length, null, function (err, written, buffer) {
+            nodetap.write(tunFile, packet, packet.length, function (err, written, buffer) {
                 if (written != buffer.length || written != packet.length) {
                     console.log('wtf');
                     console.log(written);
@@ -167,7 +164,7 @@ function tun(device, tunIP, options) {
 
         function queuePacket(packet) {
             if (os.platform() == 'win32') {
-                fs.writeSync(tunFile, packet, 0, packet.length);
+                nodetap.writeSync(tunFile, packet, packet.length);
             }
             else {
                 packetPump(packet);
@@ -459,11 +456,11 @@ function tun(device, tunIP, options) {
                 // console.log('actually read from device was: '  + bytesRead);
 
                 if (tunFile)
-                    fs.read(tunFile, b, 0, b.length, null, readCallback);
+                    nodetap.read(tunFile, b, b.length, readCallback);
             }
 
             console.log('Reading tun/tap device... ');
-            fs.read(tunFile, b, 0, b.length, null, readCallback);
+            nodetap.read(tunFile, b, b.length, readCallback);
         }
 
         function postSetup() {

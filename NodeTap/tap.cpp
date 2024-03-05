@@ -321,6 +321,57 @@ Value Read(const CallbackInfo& info)
 	return env.Null();
 }
 
+// int64_t  handle
+// TBuffer  buffer,
+// int64_t  length,
+// returns: int64_t (number of bytesRead)
+Value ReadSync(const CallbackInfo& info)
+{
+	Env env = info.Env();
+
+	if (info.Length() < 3)
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int64_t handle;
+	if (!GetInt64Parameter(env, info[0], &handle))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	Uint8Array buffer;
+	if (!GetBufferParameter(env, info[1], &buffer))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	int64_t length;
+	if (!GetInt64Parameter(env, info[2], &length))
+	{
+		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	if ((int64_t)buffer.ByteLength() < length)
+	{
+		length = buffer.ByteLength();
+	}
+
+	DWORD bytesRead;
+	BOOL success = ReadFile((HANDLE)handle, buffer.Data(), (DWORD)length, &bytesRead, nullptr);
+	if (success != TRUE)
+	{
+		Error::New(env, "File read error").ThrowAsJavaScriptException();
+		return env.Null();
+	}
+
+	return BigInt::New(env, (int64_t)bytesRead);
+}
+
 // int64_t handle
 // TBuffer buffer,
 // int64_t length,
@@ -372,12 +423,12 @@ Value Write(const CallbackInfo& info)
 // int64_t  handle
 // TBuffer  buffer,
 // int64_t  length,
-// returns: bool
+// returns: int64_t (number of bytesWritten)
 Value WriteSync(const CallbackInfo& info)
 {
 	Env env = info.Env();
 
-	if (info.Length() < 1)
+	if (info.Length() < 3)
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
 		return env.Null();
@@ -411,8 +462,13 @@ Value WriteSync(const CallbackInfo& info)
 
 	DWORD bytesWritten;
 	BOOL success = WriteFile((HANDLE)handle, buffer.Data(), (DWORD)length, &bytesWritten, nullptr);
+	if (success != TRUE)
+	{
+		Error::New(env, "File write error").ThrowAsJavaScriptException();
+		return env.Null();
+	}
 
-	return Boolean::New(env, success == TRUE);
+	return BigInt::New(env, (int64_t)bytesWritten);
 }
 
 // int64_t handle

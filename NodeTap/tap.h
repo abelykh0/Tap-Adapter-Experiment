@@ -35,6 +35,7 @@ Value DhcpSetOptions(const CallbackInfo& info);
 Value ConfigTun(const CallbackInfo& info);
 Value SetMediaStatus(const CallbackInfo& info);
 Value Read(const CallbackInfo& info);
+Value ReadSync(const CallbackInfo& info);
 Value Write(const CallbackInfo& info);
 Value WriteSync(const CallbackInfo& info);
 Value Close(const CallbackInfo& info);
