@@ -4,12 +4,13 @@
 WriteAsyncWorker::WriteAsyncWorker(
     const Function& callback,
     const HANDLE handle,
-    const Uint8Array buffer,
+    const Buffer<uint8_t> buffer,
     const int bytesToWrite
 ) : AsyncWorker(callback)
 {
     _handle = handle;
     _buffer = buffer;
+    _bufferRef = ObjectReference::New(buffer, 1);
     _bytesToWrite = bytesToWrite;
     _bytesWritten = 0;
 }
@@ -24,10 +25,12 @@ void WriteAsyncWorker::OnOK()
         Receiver().Value(),
         {
             env.Null(), // error
-            _buffer, 
-            bytesWritten
+            bytesWritten,
+            _bufferRef.Value()
         }
     );
+
+    _bufferRef.Unref();
 }
 
 void WriteAsyncWorker::OnError(const Error& e)
@@ -40,10 +43,12 @@ void WriteAsyncWorker::OnError(const Error& e)
         Receiver().Value(),
         {
             e.Value(),
-            _buffer, 
-            bytesWritten
+            bytesWritten,
+            _bufferRef.Value()
         }
     );
+
+    _bufferRef.Unref();
 }
 
 void WriteAsyncWorker::Execute()

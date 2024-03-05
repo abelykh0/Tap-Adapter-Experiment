@@ -1,4 +1,5 @@
 bin/
 obj/
 x64/
+node_modules/
 .vs

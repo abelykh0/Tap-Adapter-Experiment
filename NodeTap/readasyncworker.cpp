@@ -4,11 +4,12 @@
 ReadAsyncWorker::ReadAsyncWorker(
     const Function& callback,
     const HANDLE handle,
-    const Uint8Array buffer,
+    const Buffer<uint8_t>& buffer,
     const int bytesToRead
 ) : AsyncWorker(callback)
 {
     _handle = handle;
+    _bufferRef = ObjectReference::New(buffer, 1);
     _buffer = buffer;
     _bytesToRead = bytesToRead;
     _bytesRead = 0;
@@ -24,10 +25,12 @@ void ReadAsyncWorker::OnOK()
         Receiver().Value(),
         {
             env.Null(), // error
-            _buffer, 
-            bytesRead 
+            bytesRead,
+            _bufferRef.Value()
         }
     );
+
+    _bufferRef.Unref();
 }
 
 void ReadAsyncWorker::OnError(const Error& e)
@@ -40,10 +43,12 @@ void ReadAsyncWorker::OnError(const Error& e)
         Receiver().Value(),
         {
             e.Value(),
-            _buffer, 
-            bytesRead
+            bytesRead,
+            _bufferRef.Value()
         }
     );
+
+    _bufferRef.Unref();
 }
 
 void ReadAsyncWorker::Execute()

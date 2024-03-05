@@ -14,7 +14,7 @@ static bool GetDeviceGuid(wstring& deviceGuid);
 static bool GetInt64Parameter(Env env, Value parameter, int64_t* value);
 static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value);
 static bool GetBoolParameter(Env env, Value parameter, bool* value);
-static bool GetBufferParameter(Env env, Value parameter, Uint8Array* value);
+static bool GetBufferParameter(Env env, Value parameter, Buffer<uint8_t>* value);
 
 // ()
 // returns: HANDLE
@@ -294,7 +294,7 @@ Value Read(const CallbackInfo& info)
 		return env.Null();
 	}
 
-	Uint8Array buffer;
+	Buffer<uint8_t> buffer;
 	if (!GetBufferParameter(env, info[1], &buffer))
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
@@ -342,7 +342,7 @@ Value ReadSync(const CallbackInfo& info)
 		return env.Null();
 	}
 
-	Uint8Array buffer;
+	Buffer<uint8_t> buffer;
 	if (!GetBufferParameter(env, info[1], &buffer))
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
@@ -393,7 +393,7 @@ Value Write(const CallbackInfo& info)
 		return env.Null();
 	}
 
-	Uint8Array buffer;
+	Buffer<uint8_t> buffer;
 	if (!GetBufferParameter(env, info[1], &buffer))
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
@@ -441,7 +441,7 @@ Value WriteSync(const CallbackInfo& info)
 		return env.Null();
 	}
 
-	Uint8Array buffer;
+	Buffer<uint8_t> buffer;
 	if (!GetBufferParameter(env, info[1], &buffer))
 	{
 		TypeError::New(env, ARGUMENT_ERROR).ThrowAsJavaScriptException();
@@ -633,14 +633,14 @@ static bool GetBoolParameter(Env env, Value parameter, bool* value)
 	return true;
 }
 
-static bool GetBufferParameter(Env env, Value parameter, Uint8Array* value)
+static bool GetBufferParameter(Env env, Value parameter, Buffer<uint8_t>* value)
 {
 	if (!parameter.IsBuffer())
 	{
 		return false;
 	}
 
-	*value = parameter.As<Uint8Array>();
+	*value = parameter.As<Buffer<uint8_t>>();
 
 	return true;
 }

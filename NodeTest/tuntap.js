@@ -412,10 +412,6 @@ function tun(device, tunIP, options) {
                 .word32be('destination');
 
             var vars = parser.vars;
-
-            var source = vars.source;
-
-            var version = vars.first >> 4;
             var headerLength = (vars.first & 0xf) * 4;
 
             // skip the first 20 bytes

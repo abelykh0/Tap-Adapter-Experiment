@@ -8,7 +8,7 @@ public:
     WriteAsyncWorker(
         const Function& callback,
         const HANDLE handle,
-        const Uint8Array buffer,
+        const Buffer<uint8_t> buffer,
         const int bytesToRead
     );
 
@@ -19,7 +19,8 @@ protected:
 
 private:
     HANDLE _handle;
-    Uint8Array _buffer;
+    ObjectReference _bufferRef;
+    Buffer<uint8_t> _buffer;
     DWORD _bytesToWrite;
     DWORD _bytesWritten;
 };

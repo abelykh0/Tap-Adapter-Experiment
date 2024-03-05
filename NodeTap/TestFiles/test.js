@@ -7,13 +7,17 @@ nodetap.dhcpSetOptions(handle, "10.0.0.0", "8.8.8.8", "8.8.4.4"); // DNS servers
 nodetap.configTun(handle, "10.0.0.0", "10.0.0.0", "255.255.255.0");
 nodetap.setMediaStatus(handle, true);
 
-reader = function (err, buffer, length) {
-    console.log('in reader callback')
+reader = function (err, length, buffer) {
+    //if (length > 0) {
+        console.log('in reader callback:' + length + "," + Object.prototype.toString.call(buffer));
+    //}
+
+    //nodetap.read(handle, buffer, buffer.length, reader);
 }
 
 var buffer = Buffer.alloc(65535);
-//nodetap.read(handle, buffer, buffer.length, reader);
-var bytesRead = nodetap.readSync(handle, buffer, buffer.length);
+console.log('real buffer:' + Object.prototype.toString.call(buffer));
+nodetap.read(handle, buffer, buffer.length, reader);
 
 const keypress = async () => {
     process.stdin.setRawMode(true)
