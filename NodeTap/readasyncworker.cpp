@@ -19,7 +19,7 @@ void ReadAsyncWorker::OnOK()
 {
     Napi::Env env = Env();
 
-    Value bytesRead = BigInt::New(env, (uint64_t)_bytesRead);
+    Value bytesRead = Number::New(env, (double)_bytesRead);
 
     Callback().MakeCallback(
         Receiver().Value(),
@@ -37,7 +37,7 @@ void ReadAsyncWorker::OnError(const Error& e)
 {
     Napi::Env env = Env();
 
-    Value bytesRead = BigInt::New(env, (uint64_t)0);
+    Value bytesRead = Number::New(env, (double)0);
 
     Callback().MakeCallback(
         Receiver().Value(),

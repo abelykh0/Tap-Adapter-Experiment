@@ -19,7 +19,7 @@ void WriteAsyncWorker::OnOK()
 {
     Napi::Env env = Env();
 
-    Value bytesWritten = BigInt::New(env, (uint64_t)_bytesWritten);
+    Value bytesWritten = Number::New(env, (double)_bytesWritten);
 
     Callback().MakeCallback(
         Receiver().Value(),
@@ -37,7 +37,7 @@ void WriteAsyncWorker::OnError(const Error& e)
 {
     Napi::Env env = Env();
 
-    Value bytesWritten = BigInt::New(env, (uint64_t)0);
+    Value bytesWritten = Number::New(env, (double)0);
 
     Callback().MakeCallback(
         Receiver().Value(),
