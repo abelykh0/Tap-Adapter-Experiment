@@ -113,7 +113,7 @@ function tun(device, tunIP, options) {
             catch (e) {
             }
         }
-        platform.runScript('interface-shutdown', [path.basename(device)], cb);
+        //platform.runScript('interface-shutdown', [path.basename(device)], cb);
     }
 
     console.log('Opening tun device: ' + device);
@@ -135,7 +135,7 @@ function tun(device, tunIP, options) {
         function packetPump(packet) {
             assert(packet != null || !packetWriting);
             if (packet && packetQueue.length > 0) {
-                var buffer = new Buffer(packet.length);
+                var buffer = Buffer.alloc(packet.length);
                 packet.copy(buffer, 0, 0, packet.length);
                 packetQueue.push(buffer);
                 packet = null;
@@ -203,9 +203,6 @@ function tun(device, tunIP, options) {
         protocolConnections[protocols.udp] = udpConnections;
 
         function rewritePacket(connections, packet, source, sourcePort, destination, destinationPort, vars) {
-            var headerLength = (vars.first & 0xf) * 4;
-            var payloadLength = vars.totalLength - headerLength;
-
             // console.log(sprintf('original checksum: %x', packet.readUInt16BE(10)));
             packet.writeUInt32BE(source, 12);
             packet.writeUInt32BE(destination, 16);
@@ -213,6 +210,8 @@ function tun(device, tunIP, options) {
             packet.writeUInt16BE(0, 10);
 
             var headerLength = (vars.first & 0xf) * 4;
+            var payloadLength = vars.totalLength - headerLength;
+
             var ipChecksum = calculateIPChecksum(packet, headerLength);
             // write the new checksum
             packet.writeUInt16LE(ipChecksum, 10);
@@ -220,7 +219,7 @@ function tun(device, tunIP, options) {
             // ipChecksum = calculateIPChecksum(packet, headerLength);
             // console.log(sprintf('verified checksum: %x', ipChecksum));
 
-            var stashedIPHeader = new Buffer(headerLength);
+            var stashedIPHeader = Buffer.alloc(headerLength);
             packet.copy(stashedIPHeader, 0, 0, headerLength);
             // console.log(stashedIPHeader);
 
@@ -232,10 +231,12 @@ function tun(device, tunIP, options) {
             packet.writeUInt8(vars.protocol, startOffset + 9);
             packet.writeUInt16BE(payloadLength, startOffset + 10);
             // this completes the rewrite of the tcp checksum pseudo-header
+
             // rewrite the ports and clear out the old checksum
             packet.writeUInt16BE(sourcePort, headerLength);
             packet.writeUInt16BE(destinationPort, headerLength + 2);
             // console.log(sprintf('original tcp checksum: %x', packet.readUInt16BE(headerLength + 16)));
+
             // clear out the old checksum
             packet.writeUInt16BE(0, headerLength + connections.checksumOffset);
 
@@ -445,7 +446,7 @@ function tun(device, tunIP, options) {
 
             // tunthis.tcpCatcher = tcpCatcher;
 
-            var b = new Buffer(65536);
+            var b = Buffer.alloc(65536);
 
             function readCallback(err, bytesRead, buffer) {
                 reader(err, bytesRead, buffer);
@@ -521,15 +522,16 @@ function startCatcher(tunIP, tunthis, catcherEmitter) {
     catcherEmitter.on('udp-outgoing', function (c) {
         c.accept = function () {
             var socket = dgram.createSocket("udp4");
-            socket.bind(0, tunIP);
+            c.socket = socket;
+            socket.bind(0, tunIP, function () {
+                c.catcherPort = socket.address().port;
+                // console.log('catcher port: ' + connection.catcherPort);
+                tunthis.emit('udp-connect', c);
+                tunthis.emit('tun-accept', trimConnection(c));
+            });
             socket.on('close', function () {
                 tunthis.emit('tun-close', trimConnection(c));
             });
-            c.socket = socket;
-            c.catcherPort = socket.address().port;
-            // console.log('catcher port: ' + connection.catcherPort);
-            tunthis.emit('udp-connect', c);
-            tunthis.emit('tun-accept', trimConnection(c));
         }
         tunthis.emit('udp-outgoing', c);
     });

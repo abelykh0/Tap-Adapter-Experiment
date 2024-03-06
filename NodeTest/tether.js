@@ -93,7 +93,9 @@ function createTun(withWorker) {
                 relayCount--;
             }
             try {
-                connection.socket.destroy();
+                if (connection.socket) {
+                    connection.socket.destroy();
+                }
             }
             catch (e) {
             }
@@ -110,7 +112,9 @@ function createTun(withWorker) {
         connection.destroy = function () {
             connection.close();
             try {
-                connection.socket.destroy();
+                if (connection.socket) {
+                    connection.socket.destroy();
+                }
             }
             catch (e) {
             }
@@ -183,7 +187,9 @@ function createTun(withWorker) {
             });
         }
         connection.close = function () {
-            connection.socket.close();
+            if (connection.socket.handle != null) {
+                connection.socket.close();
+            }
         }
         connection.ready = function () {
         }

@@ -5,8 +5,7 @@
     <Name>NodeTest2</Name>
     <RootNamespace>NodeTest2</RootNamespace>
     <SaveNodeJsSettingsInProjectFile>True</SaveNodeJsSettingsInProjectFile>
-    <Environment>
-    </Environment>
+    <Environment>NO_TUNWORKER=true</Environment>
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -36,7 +35,6 @@
     <Content Include="package.json" />
     <Content Include="platform.js" />
     <Content Include="protocols.js" />
-    <Content Include="test.js" />
     <Content Include="tether.js" />
     <Content Include="tuntap.js" />
   </ItemGroup>
