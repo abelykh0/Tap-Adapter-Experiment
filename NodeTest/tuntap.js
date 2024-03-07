@@ -523,7 +523,7 @@ function startCatcher(tunIP, tunthis, catcherEmitter) {
         c.accept = function () {
             var socket = dgram.createSocket("udp4");
             c.socket = socket;
-            socket.bind(0, tunIP, function () {
+            socket.bind({ address: tunIP, port: 0, exclusive: true }, function () {
                 c.catcherPort = socket.address().port;
                 // console.log('catcher port: ' + connection.catcherPort);
                 tunthis.emit('udp-connect', c);

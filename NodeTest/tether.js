@@ -28,9 +28,6 @@ function createTun(withWorker) {
 
         if (withWorker) {
             function forker() {
-                // not having this console.log here makes Windows crap out on the fork.
-                // hangs the process. stdout needs pumping? Dunno.
-                console.log('Forking worker.');
                 t.setCatcherWorker(myWorker = cluster.fork());
             }
             if (os.platform() == 'win32') {
