@@ -1,17 +1,14 @@
 // Copyright 2011 ClockworkMod, LLC.
 
-var fs = require('fs');
 var binary = require('binary');
 var events = require('events');
 var net = require('net');
 var dgram = require('dgram');
 var os = require('os');
-var path = require('path');
 var assert = require('assert');
 var cluster = require('cluster');
 
 var protocols = require('./protocols');
-var platform = require('./platform');
 var nodetap = require('bindings')('./nodetap');
 
 String.prototype.trim = function () { return this.replace(/^\s\s*/, '').replace(/\s\s*$/, ''); };
@@ -113,7 +110,6 @@ function tun(device, tunIP, options) {
             catch (e) {
             }
         }
-        //platform.runScript('interface-shutdown', [path.basename(device)], cb);
     }
 
     console.log('Opening tun device: ' + device);
