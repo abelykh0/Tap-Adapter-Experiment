@@ -1,6 +1,5 @@
 #include "pch.h"
 #include <assert.h>
-#include <iphlpapi.h>
 #include <string>
 #include <vector>
 
@@ -8,13 +7,28 @@
 #include "readasyncworker.h"
 #include "writeasyncworker.h"
 
+#ifdef _WIN32
+#include <winioctl.h>
+#include <iphlpapi.h>
+#else
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/if_tun.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <fcntl.h>
+typedef struct in_addr IN_ADDR;
+#endif
+
 using namespace std;
 
-static bool GetDeviceGuid(wstring& deviceGuid);
 static bool GetInt64Parameter(Env env, Value parameter, int64_t* value);
 static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value);
 static bool GetBoolParameter(Env env, Value parameter, bool* value);
 static bool GetBufferParameter(Env env, Value parameter, Buffer<uint8_t>* value);
+#ifdef _WIN32
+static bool GetDeviceGuid(wstring& deviceGuid);
+#endif
 
 // ()
 // returns: HANDLE
@@ -22,6 +36,7 @@ Value OpenTap(const CallbackInfo& info)
 {
 	Env env = info.Env();
 
+#ifdef _WIN32
 	wstring deviceGuid;
 	if (!GetDeviceGuid(deviceGuid))
 	{
@@ -41,8 +56,13 @@ Value OpenTap(const CallbackInfo& info)
 		OPEN_EXISTING,
 		FILE_ATTRIBUTE_SYSTEM | FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH,
 		nullptr);
+	bool success = handle != INVALID_HANDLE_VALUE;
+#else
+	int handle = open("/dev/net/tap", O_RDWR);
+	bool success = handle != -1;
+#endif
 
-	if (handle == INVALID_HANDLE_VALUE)
+	if (!success)
 	{
 		TypeError::New(env, CANNOT_OPEN_TAP).ThrowAsJavaScriptException();
 		return env.Null();
@@ -95,9 +115,9 @@ Value ConfigDhcp(const CallbackInfo& info)
 	}
 
 	u_long buffer[4];
-	buffer[0] = ipAddress.S_un.S_addr;
-	buffer[1] = mask.S_un.S_addr;
-	buffer[2] = dhcpServerIP.S_un.S_addr;
+	buffer[0] = ipAddress.s_addr;
+	buffer[1] = mask.s_addr;
+	buffer[2] = dhcpServerIP.s_addr;
 	buffer[3] = 3600; // TTL
 	DWORD bytesReturned;
 	BOOL success = DeviceIoControl(
@@ -143,7 +163,7 @@ Value DhcpSetOptions(const CallbackInfo& info)
 	// Default gateway
 	buffer[0] = 3;
 	buffer[1] = 4;
-	memcpy(&buffer[2], &defaultGateway.S_un.S_addr, sizeof(u_long));
+	memcpy(&buffer[2], &defaultGateway.s_addr, sizeof(u_long));
 
 	int bufferSize = 6;
 
@@ -152,7 +172,7 @@ Value DhcpSetOptions(const CallbackInfo& info)
 	if (dnsAddressCount > 0)
 	{
 		buffer[6] = 6;
-		buffer[7] = 4 * dnsAddressCount;
+		buffer[7] = (uint8_t)(4 * dnsAddressCount);
 
 		bufferSize += 2 + (4 * dnsAddressCount);
 		for (int i = 0; i < dnsAddressCount; i++)
@@ -164,7 +184,7 @@ Value DhcpSetOptions(const CallbackInfo& info)
 				return env.Null();
 			}
 
-			memcpy(&buffer[8 + (4 * i)], &address.S_un.S_addr, sizeof(u_long));
+			memcpy(&buffer[8 + (4 * i)], &address.s_addr, sizeof(u_long));
 		}
 	}
 
@@ -222,15 +242,24 @@ Value ConfigTun(const CallbackInfo& info)
 	}
 
 	u_long buffer[3];
-	buffer[0] = localIP.S_un.S_addr;
-	buffer[1] = remoteIP.S_un.S_addr;
-	buffer[2] = remoteMask.S_un.S_addr;
+	buffer[0] = localIP.s_addr;
+	buffer[1] = remoteIP.s_addr;
+	buffer[2] = remoteMask.s_addr;
+
+#ifdef _WIN32
 	DWORD bytesReturned;
 	BOOL success = DeviceIoControl(
 		(HANDLE)handle,
 		TAP_IOCTL_CONFIG_TUN,
 		buffer, 12,
 		nullptr, 0, &bytesReturned, nullptr);
+#else
+	struct ifreq ifr;
+	memset(&ifr, 0, sizeof(ifr));
+	ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
+	strncpy(ifr.ifr_name, "tun", IFNAMSIZ);
+	BOOL success = ioctl((int)handle, TUNSETIFF, &ifr) >= 0;
+#endif
 
 	return Boolean::New(env, success == TRUE);
 }
@@ -361,8 +390,14 @@ Value ReadSync(const CallbackInfo& info)
 		length = buffer.ByteLength();
 	}
 
+#ifdef _WIN32
 	DWORD bytesRead;
 	BOOL success = ReadFile((HANDLE)handle, buffer.Data(), (DWORD)length, &bytesRead, nullptr);
+#else
+	ssize_t bytesRead = read((int)handle, buffer.Data(), (DWORD)length);
+	BOOL success = bytesRead != -1;
+#endif
+
 	if (success != TRUE)
 	{
 		Error::New(env, "File read error").ThrowAsJavaScriptException();
@@ -460,8 +495,14 @@ Value WriteSync(const CallbackInfo& info)
 		length = buffer.ByteLength();
 	}
 
+#ifdef _WIN32
 	DWORD bytesWritten;
 	BOOL success = WriteFile((HANDLE)handle, buffer.Data(), (DWORD)length, &bytesWritten, nullptr);
+#else
+	ssize_t bytesWritten = write((int)handle, buffer.Data(), (DWORD)length);
+	BOOL success = bytesWritten >= 0;
+#endif
+
 	if (success != TRUE)
 	{
 		Error::New(env, "File write error").ThrowAsJavaScriptException();
@@ -490,11 +531,101 @@ Value Close(const CallbackInfo& info)
 		return env.Null();
 	}
 
+#ifdef _WIN32
 	BOOL success = CloseHandle((HANDLE)handle);
+#else
+	BOOL success = close((int)handle) == 0;
+#endif
 
 	return Boolean::New(env, success == TRUE);
 }
 
+static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value)
+{
+	if (!parameter.IsString())
+	{
+		return false;
+	}
+
+#ifdef _WIN32
+	auto parameterValue = parameter.As<String>().Utf16Value();
+
+	NET_ADDRESS_INFO ipAddressInfo;
+	DWORD parseResult = ParseNetworkString((WCHAR*)parameterValue.data(), NET_STRING_IPV4_ADDRESS, &ipAddressInfo, nullptr, nullptr);
+	if (parseResult != ERROR_SUCCESS)
+	{
+		return false;
+	}
+
+	*value = ipAddressInfo.Ipv4Address.sin_addr;
+#else
+	auto parameterValue = parameter.As<String>().Utf8Value();
+
+	struct addrinfo hints;
+	hints.ai_flags = 0;
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+
+	struct addrinfo* res;
+
+	int parseResult = getaddrinfo(parameterValue.data(), nullptr, &hints, &res);
+	if (parseResult != 0)
+	{
+		return false;
+	}
+
+	*value = ((struct sockaddr_in*)res->ai_addr)->sin_addr;
+	freeaddrinfo(res);
+#endif
+
+	return true;
+}
+
+static bool GetInt64Parameter(Env env, Value parameter, int64_t* value)
+{
+	if (parameter.IsNumber())
+	{
+		*value = parameter.As<Number>().Int64Value();
+		return true;
+	}
+
+	if (!parameter.IsBigInt())
+	{
+		return false;
+	}
+
+	bool lossless;
+	*value = parameter.As<BigInt>().Int64Value(&lossless);
+
+	return true;
+}
+
+static bool GetBoolParameter(Env env, Value parameter, bool* value)
+{
+	if (!parameter.IsBoolean())
+	{
+		return false;
+	}
+
+	*value = parameter.As<Boolean>().Value();
+
+	return true;
+}
+
+static bool GetBufferParameter(Env env, Value parameter, Buffer<uint8_t>* value)
+{
+	if (!parameter.IsBuffer())
+	{
+		return false;
+	}
+
+	*value = parameter.As<Buffer<uint8_t>>();
+
+	return true;
+}
+
+#ifdef _WIN32
 static bool GetDeviceGuid(wstring& deviceGuid)
 {
 	HKEY keyHandle;
@@ -506,17 +637,17 @@ static bool GetDeviceGuid(wstring& deviceGuid)
 	DWORD numberOfSubkeys;
 	DWORD maxSubkeyLen;
 	LSTATUS success = RegQueryInfoKey(
-		keyHandle,    
+		keyHandle,
 		nullptr,
 		nullptr,
-		nullptr,      
-		&numberOfSubkeys,      
-		&maxSubkeyLen,      
-		nullptr,      
-		nullptr,     
-		nullptr,      
 		nullptr,
-		nullptr,		
+		&numberOfSubkeys,
+		&maxSubkeyLen,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
 		nullptr);
 	if (success != ERROR_SUCCESS)
 	{
@@ -529,7 +660,7 @@ static bool GetDeviceGuid(wstring& deviceGuid)
 		vector<TCHAR> subKey(maxSubkeyLen);
 		DWORD subKeySize = maxSubkeyLen;
 		success = RegEnumKeyEx(
-			keyHandle, 
+			keyHandle,
 			i,
 			subKey.data(),
 			&subKeySize,
@@ -581,66 +712,4 @@ static bool GetDeviceGuid(wstring& deviceGuid)
 	RegCloseKey(keyHandle);
 	return false;
 }
-
-static bool GetIPv4AddressParameter(Env env, Value parameter, IN_ADDR* value)
-{
-	if (!parameter.IsString())
-	{
-		return false;
-	}
-
-	auto parameterValue = parameter.As<String>().Utf16Value();
-
-	NET_ADDRESS_INFO ipAddressInfo;
-	DWORD parseResult = ParseNetworkString((WCHAR*)parameterValue.data(), NET_STRING_IPV4_ADDRESS, &ipAddressInfo, nullptr, nullptr);
-	if (parseResult != ERROR_SUCCESS)
-	{
-		return false;
-	}
-
-	*value = ipAddressInfo.Ipv4Address.sin_addr;
-	return true;
-}
-
-static bool GetInt64Parameter(Env env, Value parameter, int64_t* value)
-{
-	if (parameter.IsNumber())
-	{
-		*value = parameter.As<Number>().Int64Value();
-		return true;
-	}
-
-	if (!parameter.IsBigInt())
-	{
-		return false;
-	}
-
-	bool lossless;
-	*value = parameter.As<BigInt>().Int64Value(&lossless);
-
-	return true;
-}
-
-static bool GetBoolParameter(Env env, Value parameter, bool* value)
-{
-	if (!parameter.IsBoolean())
-	{
-		return false;
-	}
-
-	*value = parameter.As<Boolean>().Value();
-
-	return true;
-}
-
-static bool GetBufferParameter(Env env, Value parameter, Buffer<uint8_t>* value)
-{
-	if (!parameter.IsBuffer())
-	{
-		return false;
-	}
-
-	*value = parameter.As<Buffer<uint8_t>>();
-
-	return true;
-}
+#endif

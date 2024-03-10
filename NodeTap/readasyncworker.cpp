@@ -53,7 +53,12 @@ void ReadAsyncWorker::OnError(const Error& e)
 
 void ReadAsyncWorker::Execute()
 {
+#ifdef _WIN32
     BOOL result = ReadFile(_handle, _buffer.Data(), _bytesToRead, &_bytesRead, nullptr);
+#else
+    BOOL result = read(_handle, _buffer.Data(), _bytesToRead) >= 0;
+#endif
+
     if (result != TRUE)
     {
         Napi::Env env = Env();

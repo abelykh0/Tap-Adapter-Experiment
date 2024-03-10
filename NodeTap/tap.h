@@ -1,13 +1,12 @@
 #pragma once
 
-#include <winioctl.h>
-
 using namespace Napi;
 
 constexpr auto UsermodeDeviceSpace = L"\\\\.\\Global\\";
 constexpr auto AdapterKey = L"SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}";
 constexpr auto TapName = L"TAP0901";
 
+#ifdef _WIN32
 #define TAP_CONTROL_CODE(request,method) \
   CTL_CODE (FILE_DEVICE_UNKNOWN, request, method, FILE_ANY_ACCESS)
 
@@ -23,6 +22,7 @@ constexpr auto TapName = L"TAP0901";
 #define TAP_IOCTL_CONFIG_TUN            TAP_CONTROL_CODE(10, METHOD_BUFFERED)
 #define TAP_IOCTL_CONFIG_DHCPV6_MASQ    TAP_CONTROL_CODE(11, METHOD_BUFFERED)
 #define TAP_IOCTL_CONFIG_DHCPV6_SET_OPT TAP_CONTROL_CODE(12, METHOD_BUFFERED)
+#endif
 
 constexpr auto ARGUMENT_ERROR = "Wrong arguments";
 constexpr auto CANNOT_OPEN_TAP = "Error opening tap file";

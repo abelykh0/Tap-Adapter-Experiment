@@ -53,7 +53,12 @@ void WriteAsyncWorker::OnError(const Error& e)
 
 void WriteAsyncWorker::Execute()
 {
+#ifdef _WIN32
     BOOL result = WriteFile(_handle, _buffer.Data(), _bytesToWrite, &_bytesWritten, nullptr);
+#else
+    BOOL result = write(_handle, _buffer.Data(), _bytesToWrite) >= 0;
+#endif
+
     if (result != TRUE)
     {
         Napi::Env env = Env();
